@@ -1,15 +1,16 @@
 from math import inf
 
 from scheduler import LoadGenerator, Task
-from energy_model import EM, Govenor
+from energy_model import EM, Schedutil
 from cpu import CPU
 
 
 class EAS:
-    def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EM, sched_tick_period: int = 1) -> None:
+    def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EM, govenor: Schedutil, sched_tick_period: int = 1) -> None:
         self._load_gen: LoadGenerator = load_gen
         self._cpus: list[CPU] = cpus
         self._em: EM = em
+        self._governor = govenor
         self._sched_tick_period: int = sched_tick_period
         self._run_queues: dict[CPU, RunQueue] = {
             cpu: RunQueue() for cpu in cpus}
@@ -29,7 +30,7 @@ class EAS:
                 if new_task is not None:
                     best_cpu = self._wake_up_balancer(cpu, new_task)
                     self._run_queues[best_cpu].insert(new_task)
-                    Govenor.update(self._run_queues)
+                    self._governor.update(self._run_queues)
 
                 queue = self._run_queues[cpu]
                 task_node = queue.smallest_vr
@@ -40,7 +41,7 @@ class EAS:
                     queue.delete(task_node)
                     if not task.terminated:
                         queue.insert(task)
-                    Govenor.update(self._run_queues)
+                    self._governor.update(self._run_queues)
                 else:
                     cpu.execute_for(self._idle_task,
                                     self._sched_tick_period)  # idle period
