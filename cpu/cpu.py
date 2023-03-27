@@ -10,13 +10,18 @@ PState = NewType('PState', tuple[int, int, int])
 
 
 class CPU:
-    def __init__(self, perf_domain: PerfDom, pstates: list[PState], capacity: int) -> None:
+    def __init__(self, perf_domain: PerfDom, pstates: list[PState], capacity: int, name) -> None:
         # assume sorted in increasing order
         self.pstates: list[PState] = pstates
         self._perf_domain: PerfDom = perf_domain
         # maximum number of instructions executed by sec
         self._max_capacity: int = capacity
         self._frequency: int = pstates[0][2]
+        self._name = name
+    
+    @property
+    def name(self) -> str:
+        return str(self._name)
 
     @property
     def frequency(self) -> int:
@@ -35,6 +40,10 @@ class CPU:
         cycles = time_ns * 10**9 * self._frequency
         task.execute(cycles)
         Profiler.executed_for_on(task, cycles, self)
+    
+    def execute(self, task: Task) -> None:
+        task.execute(task.remaining_cycles)
+        Profiler.executed_for_on(task, task.remaining_cycles, self)
 
     @property
     def max_capacity(self) -> int:

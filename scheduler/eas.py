@@ -1,8 +1,9 @@
-from math import inf
+from math import inf, log2
 
 from scheduler import LoadGenerator, Task
 from energy_model import EM, Schedutil
 from cpu import CPU
+from profiler import Profiler
 
 
 class EAS:
@@ -14,12 +15,11 @@ class EAS:
         self._sched_tick_period: int = sched_tick_period
         self._run_queues: dict[CPU, RunQueue] = {
             cpu: RunQueue() for cpu in cpus}
-        self._idle_task = Task(0, "idle")
 
     def run(self, sched_ticks: int) -> None:
         for tick in range(sched_ticks):
-            # every 1 sec rebalance the load if CPU is over utilized (as CFS)
-            if tick % 1000 == 0 and self._is_over_utilized():
+            # every 0.5 sec rebalance the load if CPU is over utilized (as CFS)
+            if tick % 500 == 0 and self._is_over_utilized():
                 self._load_balancer()
 
             # pick the next task to execute on each CPU
@@ -30,287 +30,355 @@ class EAS:
                 if new_task is not None:
                     best_cpu = self._wake_up_balancer(cpu, new_task)
                     self._run_queues[best_cpu].insert(new_task)
-                    self._governor.update(self._run_queues)
+                    self._governor.update(self._run_queues, tick)
+                    Profiler.update_load(self._run_queues, tick)
 
                 queue = self._run_queues[cpu]
                 task_node = queue.smallest_vr
-                if task_node is not None:
-                    task = task_node.task
-                    cpu.execute_for(task, self._sched_tick_period)
-                    # TODO éviter de devoir del + insert
-                    queue.delete(task_node)
-                    if not task.terminated:
-                        queue.insert(task)
-                    self._governor.update(self._run_queues)
-                else:
-                    cpu.execute_for(self._idle_task,
-                                    self._sched_tick_period)  # idle period
+                task = task_node.task
+                cpu.execute_for(task, self._sched_tick_period)
 
+                if task.name == "idle":
+                    pass
+                elif not task.terminated:
+                    queue.update(task_node)
+                else:
+                    queue.delete(task_node)
+
+                self._governor.update(self._run_queues, tick)
+                Profiler.update_load(self._run_queues, tick)
+
+    # extremely simplefied compared to CFS implementation
     def _load_balancer(self) -> None:
-        pass  # TODO
+        used_cycles = 0
+        idle_cpu = None
+        overloaded_cpu = (None, -inf)
+        for cpu in self._cpus:
+            load = self._compute_load(cpu)
+            if load == 0:
+                idle_cpu = cpu
+            elif overloaded_cpu[1] < load:
+                overloaded_cpu = (cpu, load)
+
+        used_cycles += 5 * len(self._cpus)
+
+        if idle_cpu is not None:
+            overloaded_runqueue = self._run_queues[overloaded_cpu[0]]
+            idle_runqueue = self._run_queues[idle_cpu]
+            task_node = overloaded_runqueue.highest_vr
+            overloaded_runqueue.delete(task_node)
+            idle_runqueue.insert(task_node.task)
+
+            used_cycles += int(log2(overloaded_runqueue.size)
+                               * 2 + log2(idle_runqueue.size))
+
+        # responsible of the scheduling group
+        self._cpus[0].execute(Task(used_cycles, "balance"))
 
     def _is_over_utilized(self) -> bool:
         for cpu in self._cpus:
-            if self._run_queues[cpu].cap / cpu.max_capacity > 80:  # load in %
+            if self._compute_load(cpu) > 80:  # load in %
                 return True
         return False
 
-    def _wake_up_balancer(self, curr_cpu: CPU, task: Task) -> CPU:
+    def _wake_up_balancer(self, by_cpu: CPU, task: Task) -> CPU:
         if self._is_over_utilized():  # act as CFS
-            pass  # TODO
-        else:
-            return self._find_energy_efficient_cpu(curr_cpu, task)
+            best_cpu = by_cpu
+            for cpu in self._cpus:
+                if self._compute_load(cpu) == 0:
+                    best_cpu = cpu
 
-    def _find_energy_efficient_cpu(self, curr_cpu: CPU, task: Task) -> CPU:
-        # TODO simuler ça par une tache
-        # TODO consider curr_cpu comme ayant déjà la tâche ?
+            by_cpu.execute(Task(3 * len(self._cpus), "balance"))
+
+        else:
+            best_cpu = self._find_energy_efficient_cpu(by_cpu, task)
+
+        return best_cpu
+
+    def _find_energy_efficient_cpu(self, by_cpu: CPU, task: Task) -> CPU:
+        used_cycles = 0
         lowest_util = {}
         for cpu in self._cpus:
             domain = cpu.type
-            load = self._run_queues[cpu].cap / cpu.max_capacity
-            if domain not in lowest_util[domain] or self._run_queues[lowest_util[domain]].cap / cpu.max_capacity > load:
+            load = self._compute_load(cpu)
+            if domain not in lowest_util[domain] or self._compute_load(lowest_util[domain]) > load:
                 lowest_util[domain] = cpu
 
-        energy_efficient_cpu = None
+        used_cycles += len(self._cpus) * 4
+
         lowest_energy = inf
         landscape = {cpu: self._run_queues[cpu].cap for cpu in self._cpus}
         for domain in self._em.perf_domains_name:
             cpu_candidate = lowest_util[domain]
             landscape[cpu_candidate] += task.cycles
 
-            estimation = self._em.compute_energy(landscape)
+            estimation, cycles = self._em.compute_energy(landscape)
+            used_cycles += cycles
             if lowest_energy > estimation:
                 energy_efficient_cpu = cpu_candidate
                 lowest_energy = estimation
 
             landscape[cpu_candidate] -= task.cycles
 
+        used_cycles += len(self._em.perf_domains_name) * 4
+
+        by_cpu.execute(Task(used_cycles, "energy"))
         return energy_efficient_cpu
 
+    def _compute_load(self, cpu: CPU):
+        return self._run_queues[cpu].cap / cpu.max_capacity
 
-class _RunQueueNode:
-    def __init__(self, task: Task) -> None:
-        self.task = task
-        self.left = None
-        self.right = None
-        self.parent = None
-        self.color = "RED"
-        # save to avoid modification TODO faire sans ?
-        self._remaining_cycles = task.remaining_cycles
-        self._executed_cycles = task.executed_cycles
+
+"""Initial code comming from https://favtutor.com/blogs/red-black-tree-python
+Altough not really a qualitative code, it works and respect the complexity
+except on the minimum element access. 
+The code has been modified to take into account the fact that this is a run queue."""
+
+
+class _RunQueueNode():
+    def __init__(self, task: Task):
+        self._task: Task = task
+        self._key: int = task.executed_cycles
+        self._cap: int = task.remaining_cycles
+        self.parent: _RunQueueNode | None = None
+        self.left: _RunQueueNode | None = None
+        self.right: _RunQueueNode | None = None
+        self.color: int = 1
 
     @property
     def key(self) -> int:
-        # should be the time instead number of cycles,
-        # but here we represent task here using an amount of cycles
-        return self.executde_cycles
-
-    @property
-    def executde_cycles(self) -> int:
-        return self._executed_cycles
-
-    @property
-    def remaining_cycles(self) -> int:
-        return self._remaining_cycles
-
-
-class RunQueue:
-    def __init__(self) -> None:
-        self._root = None
-        self._leftmost = None
-        self._capacity = 0
-
-    @property
-    def smallest_vr(self) -> None | _RunQueueNode:
-        return None if self._leftmost is None else self._leftmost
+        return self.task.executed_cycles
 
     @property
     def cap(self) -> int:
-        return self._capacity
+        return self._cap
 
-    def insert(self, task: Task) -> None:
-        node = _RunQueueNode(task)
-        self._capacity += node.remaining_cycles
+    @property
+    def task(self) -> Task:
+        return self._task
 
-        if self._root is None:
-            self._root = node
-            self._root.color = "BLACK"
-            self._leftmost = self._root
+
+class RunQueue():
+    def __init__(self):
+        self.NULL: _RunQueueNode = _RunQueueNode(Task(-1, "idle"))
+        self.NULL.color = 0
+        self.root: _RunQueueNode = self.NULL
+        self._total_cap: int = 0
+        self._size: int = 0
+
+    @property
+    def size(self) -> int:
+        return self._size
+
+    @property
+    def smallest_vr(self) -> _RunQueueNode:  # not in O(1), here
+        return self._minimum(self.root)
+
+    @property
+    def highest_vr(self) -> _RunQueueNode:  # not in O(1), here
+        return self._maximum(self.root)
+
+    @property
+    def cap(self) -> int:
+        return self._total_cap
+
+    def insert(self, key: Task) -> None:
+        self._size += 1
+        node = _RunQueueNode(key)
+        self._total_cap += node.cap
+
+        y = None
+        x = self.root
+
+        while x != self.NULL:
+            y = x
+            if node.key < x.key:
+                x = x.left
+            else:
+                x = x.right
+
+        node.parent = y
+        if y == None:
+            self.root = node
+        elif node.key < y.key:
+            y.left = node
+        else:
+            y.right = node
+
+        if node.parent == None:
+            node.color = 0
             return
 
-        current = self._root
-        parent = None
-        while current is not None:
-            parent = current
-            if node.key < current.key:
-                current = current.left
-            else:
-                current = current.right
-
-        node.parent = parent
-
-        if node.key < parent.key:
-            parent.left = node
-        else:
-            parent.right = node
-
-        if self._leftmost is None or node.key < self._leftmost.key:
-            self._leftmost = node
+        if node.parent.parent == None:
+            return
 
         self._fix_insert(node)
 
-    def delete(self, node: _RunQueueNode) -> None:
-        self._capacity -= node.remaining_cycles
+    def _minimum(self, node) -> _RunQueueNode:
+        while node.left is not None:
+            node = node.left
+        return node
 
-        if node.left is None or node.right is None:
-            y = node
+    def _maximum(self, node) -> _RunQueueNode:
+        while node.right is not None:
+            node = node.right
+        return node
+
+    def _left_rotation(self, x):
+        y = x.right
+        x.right = y.left
+        if y.left != self.NULL:
+            y.left.parent = x
+
+        y.parent = x.parent
+        if x.parent == None:
+            self.root = y
+        elif x == x.parent.left:
+            x.parent.left = y
         else:
-            y = self.successor(node)
+            x.parent.right = y
+        y.left = x
+        x.parent = y
 
-        if y.left is not None:
-            x = y.left
+    def _rotate_right(self, x):
+        y = x.left
+        x.left = y.right
+        if y.right != self.NULL:
+            y.right.parent = x
+
+        y.parent = x.parent
+        if x.parent == None:
+            self.root = y
+        elif x == x.parent.right:
+            x.parent.right = y
         else:
-            x = y.right
+            x.parent.left = y
+        y.right = x
+        x.parent = y
 
-        if x is not None:
-            x.parent = y.parent
-
-        if y.parent is None:
-            self.root = x
-        elif y == y.parent.left:
-            y.parent.left = x
-        else:
-            y.parent.right = x
-
-        if y != node:
-            node.key = y.key
-            node.value = y.value
-
-        if self.leftmost == y:
-            if y.right is not None:
-                self.leftmost = self.minimum(y.right)
+    def _fix_insert(self, k):
+        while k.parent.color == 1:
+            if k.parent == k.parent.parent.right:
+                u = k.parent.parent.left
+                if u.color == 1:
+                    u.color = 0
+                    k.parent.color = 0
+                    k.parent.parent.color = 1
+                    k = k.parent.parent
+                else:
+                    if k == k.parent.left:
+                        k = k.parent
+                        self._rotate_right(k)
+                    k.parent.color = 0
+                    k.parent.parent.color = 1
+                    self._left_rotation(k.parent.parent)
             else:
-                self.leftmost = y.parent
-
-        if y.color == "BLACK":
-            self._fix_delete(x, y.parent)
-
-    def _fix_insert(self, node) -> None:
-        while node.parent is not None and node.parent.color == "RED":
-            if node.parent == node.parent.parent.left:
-                uncle = node.parent.parent.right
-
-                if uncle is not None and uncle.color == "RED":
-                    node.parent.color = "BLACK"
-                    uncle.color = "BLACK"
-                    node.parent.parent.color = "RED"
-                    node = node.parent.parent
+                u = k.parent.parent.right
+                if u.color == 1:
+                    u.color = 0
+                    k.parent.color = 0
+                    k.parent.parent.color = 1
+                    k = k.parent.parent
                 else:
-                    if node == node.parent.right:
-                        node = node.parent
-                        self._left_rotate(node)
+                    if k == k.parent.right:
+                        k = k.parent
+                        self._left_rotation(k)
+                    k.parent.color = 0
+                    k.parent.parent.color = 1
+                    self._rotate_right(k.parent.parent)
+            if k == self.root:
+                break
+        self.root.color = 0
 
-                    node.parent.color = "BLACK"
-                    node.parent.parent.color = "RED"
-                    self._right_rotate(node.parent.parent)
-            else:
-                uncle = node.parent.parent.left
-
-                if uncle is not None and uncle.color == "RED":
-                    node.parent.color = "BLACK"
-                    uncle.color = "BLACK"
-                    node.parent.parent.color = "RED"
-                    node = node.parent.parent
+    def _fix_delete(self, x):
+        while x != self.root and x.color == 0:
+            if x == x.parent.left:
+                s = x.parent.right
+                if s.color == 1:
+                    s.color = 0
+                    x.parent.color = 1
+                    self._left_rotation(x.parent)
+                    s = x.parent.right
+                if s.left.color == 0 and s.right.color == 0:
+                    s.color = 1
+                    x = x.parent
                 else:
-                    if node == node.parent.left:
-                        node = node.parent
-                        self._right_rotate(node)
+                    if s.right.color == 0:
+                        s.left.color = 0
+                        s.color = 1
+                        self._rotate_right(s)
+                        s = x.parent.right
 
-                    node.parent.color = "BLACK"
-                    node.parent.parent.color = "RED"
-                    self._left_rotate(node.parent.parent)
-
-        self._root.color = "BLACK"
-
-    def _fix_delete(self, x, parent) -> None:
-        while x != self.root and (x is None or x.color == "BLACK"):
-            if x == parent.left:
-                sibling = parent.right
-
-                if sibling.color == "RED":
-                    sibling.color = "BLACK"
-                    parent.color = "RED"
-                    self._left_rotate(parent)
-                    sibling = parent.right
-
-                if (sibling.left is None or sibling.left.color == "BLACK") and (sibling.right is None or sibling.right.color == "BLACK"):
-                    sibling.color = "RED"
-                    x = parent
-                    parent = x.parent
-                else:
-                    if sibling.right is None or sibling.right.color == "BLACK":
-                        sibling.left.color = "BLACK"
-                        sibling.color = "RED"
-                        self._right_rotate(sibling)
-                        sibling = parent.right
-
-                    sibling.color = parent.color
-                    parent.color = "BLACK"
-                    sibling.right.color = "BLACK"
-                    self._left_rotate(parent)
+                    s.color = x.parent.color
+                    x.parent.color = 0
+                    s.right.color = 0
+                    self._left_rotation(x.parent)
                     x = self.root
             else:
-                sibling = parent.left
+                s = x.parent.left
+                if s.color == 1:
+                    s.color = 0
+                    x.parent.color = 1
+                    self._rotate_right(x.parent)
+                    s = x.parent.left
 
-                if sibling.color == "RED":
-                    sibling.color = "BLACK"
-                    parent.color = "RED"
-                    self._right_rotate(parent)
-                    sibling = parent.left
+                if s.right.color == 0 and s.right.color == 0:
+                    s.color = 1
+                    x = x.parent
+                else:
+                    if s.left.color == 0:
+                        s.right.color = 0
+                        s.color = 1
+                        self._left_rotation(s)
+                        s = x.parent.left
 
-                if (sibling.left is None or sibling.left.color == "BLACK") and (sibling.right is None or sibling.right.color == "BLACK"):
-                    sibling.color
+                    s.color = x.parent.color
+                    x.parent.color = 0
+                    s.left.color = 0
+                    self._rotate_right(x.parent)
+                    x = self.root
+        x.color = 0
 
-    def _left_rotate(self, node) -> None:
-        right = node.right
-        node.right = right.left
-
-        if right.left is not None:
-            right.left.parent = node
-
-        right.parent = node.parent
-
-        if node.parent is None:
-            self._root = right
-        elif node == node.parent.left:
-            node.parent.left = right
+    def _rb_transplant(self, u, v):
+        if u.parent == None:
+            self.root = v
+        elif u == u.parent.left:
+            u.parent.left = v
         else:
-            node.parent.right = right
+            u.parent.right = v
+        v.parent = u.parent
 
-        right.left = node
-        node.parent = right
+    def delete(self, node: _RunQueueNode) -> None:
+        self._size -= 1
+        self._total_cap -= node.cap
 
-        if node == self._leftmost:
-            self._leftmost = right
-
-    def _right_rotate(self, node) -> None:
-        left = node.left
-        node.left = left.right
-
-        if left.right is not None:
-            left.right.parent = node
-
-        left.parent = node.parent
-
-        if node.parent is None:
-            self._root = left
-        elif node == node.parent.left:
-            node.parent.left = left
+        z = node
+        y = z
+        y_original_color = y.color
+        if z.left == self.NULL:
+            x = z.right
+            self._rb_transplant(z, z.right)
+        elif (z.right == self.NULL):
+            x = z.left
+            self._rb_transplant(z, z.left)
         else:
-            node.parent.right = left
+            y = self._minimum(z.right)
+            y_original_color = y.color
+            x = y.right
+            if y.parent == z:
+                x.parent = y
+            else:
+                self._rb_transplant(y, y.right)
+                y.right = z.right
+                y.right.parent = y
 
-        left.right = node
-        node.parent = left
+            self._rb_transplant(z, y)
+            y.left = z.left
+            y.left.parent = y
+            y.color = z.color
+        if y_original_color == 0:
+            self._fix_delete(x)
 
-        if left.left is None:
-            self._leftmost = left
+    def update(self, node: _RunQueueNode) -> None:
+        self.delete(node)
+        self.insert(node.task)
