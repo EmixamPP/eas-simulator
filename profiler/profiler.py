@@ -1,32 +1,63 @@
-from scheduler import Task, RunQueue
-from cpu import CPU
+import math
 
 
-# TODO:
-#   - plot load per cpu over time (2D)
-#   - plot task with their cycles per CPU with color accent on Task with name "idle" and "energy" (1D)
-#   - plot total energy over time (2D)
 class Profiler:
     def __init__(self) -> None:
-        pass
+        self._total_energy: float = 0
+        self._cpu_power_timestamp: dict[str, tuple[int, int]] = {}
 
-    def update_load(self, load: dict[CPU, RunQueue], timestamp_ns: int):
-        pass
+        # one index for each task type: common, energy, balance, idle
+        self._cycles_hist: list[int] = [0, 0, 0, 0]
 
-    def executed_for_on(self, task: Task, cycles: int, cpu: CPU):
-        pass
-    
-    def update_energy_consumption(self, energy: int, timestamp_ns: int):
-        pass
+        self._created_task: int = 0
+        self._ended_task: int = 0
 
     def reset(self):
-        pass
+        self.__init__()
 
-    def stash(self):
-        pass
+    def executed_for(self, task_name: str, cycles: int) -> None:
+        i = 0
+        match task_name:
+            case "energy":
+                i = 1
+            case "balance":
+                i = 2
+            case "idle":
+                i = 3
+        self._cycles_hist[i] += cycles
 
-    def unstash(self):
-        pass
+    def new_task(self) -> None:
+        self._created_task += 1
 
-    def generate_plots(self):
-        pass
+    def end_task(self) -> None:
+        self._ended_task += 1
+
+    def update_power_consumption(self, power: int, timestamp_ms: int, cpu_name: str) -> None:
+        if cpu_name in self._cpu_power_timestamp:
+            previous_power = self._cpu_power_timestamp[cpu_name][0]
+            previous_timestamp = self._cpu_power_timestamp[cpu_name][1]
+            self._total_energy += previous_power * \
+                (timestamp_ms - previous_timestamp)  # TODO * 10**-3
+
+        self._cpu_power_timestamp[cpu_name] = (power, timestamp_ms)
+
+    @property
+    def created_task(self) -> int:
+        return self._created_task
+
+    @property
+    def ended_task(self) -> int:
+        return self._ended_task
+
+    @property
+    def cycles_repartition(self) -> tuple[float, float, float, float]:
+        total_cycles = sum(self._cycles_hist)
+        return tuple([i/total_cycles*100 for i in self._cycles_hist])
+
+    @property
+    def cycles_hist(self) -> tuple[int, int, int, int]:
+        return tuple(self._cycles_hist)
+
+    @property
+    def total_energy(self) -> int:
+        return math.ceil(self._total_energy)

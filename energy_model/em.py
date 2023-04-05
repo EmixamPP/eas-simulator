@@ -1,11 +1,14 @@
-from cpu import CPU, PerfDom, PState
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from cpu import CPU, PerfDom, PState
 
 
-class EM:
+class EnergyModel:
     def __init__(self, cpus: list[CPU]) -> None:
         self._power_table: dict[PerfDom, list[PState]] = {}
         self.perf_domains_name: list[PerfDom] = []
-        self._cpus = cpus
+        self._cpus: list[CPU] = cpus
 
         for cpu in cpus:
             perf_domain_name = cpu.type
@@ -14,12 +17,12 @@ class EM:
                 self._power_table[perf_domain_name] = cpu.pstates
 
     def compute_energy(self, landscape: dict[CPU, int]) -> tuple[int, int]:
-        used_cycle = 0
-        total_energy = 0
+        used_cycle: int = 0
+        total_energy: int = 0
 
         for cpu in self._cpus:
-            capacity = landscape[cpu]
-            energy = 0
+            capacity: int = landscape[cpu]
+            energy: int = 0
 
             # assume sorted in increasing order
             for pstate in self._power_table[cpu.type]:

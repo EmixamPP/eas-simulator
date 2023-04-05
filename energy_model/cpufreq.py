@@ -1,19 +1,23 @@
-from scheduler import RunQueue
-from cpu import CPU
-from profiler import Profiler
-
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from scheduler import RunQueue
+    from cpu import CPU
 
 class Schedutil:
     def __init__(self, cpus: list[CPU]) -> None:
-        self._cpus = cpus
+        self._cpus: list[CPU] = cpus
 
-    def update(self, load: dict[CPU, RunQueue], tick: int) -> None:
-        total_energy = 0
+    def update(self, landscape: dict[CPU, RunQueue]) -> None:
+        total_energy: int = 0
+        
         for cpu in self._cpus:
-            for pstate in cpu.pstates:
-                if pstate[0] > load[cpu].cap:
-                    cpu.frequency = pstate
-                    total_energy += pstate[1]
-                    break
+            capacity: int = landscape[cpu].cap
+            energy: int = 0
 
-        Profiler.update_energy_consumption(total_energy, tick)
+            for pstate in cpu.pstates:
+                energy = pstate[1]
+                cpu.pstate = pstate
+                if pstate[0] > capacity:
+                    break
+            total_energy += energy

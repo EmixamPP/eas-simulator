@@ -1,2 +1,2 @@
-import profiler.profiler
-Profiler = profiler.profiler.Profiler()
+from profiler.profiler import Profiler
+Profiler = Profiler()

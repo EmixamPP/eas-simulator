@@ -1,7 +1,11 @@
-from energy_model import EM
-from cpu import CPU
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from cpu import CPU
 
-class EMenhanced(EM):
+from energy_model import EnergyModel
+
+class EMenhanced(EnergyModel):
     def __init__(self, cpus: list[CPU]) -> None:
         super().__init__(cpus)
     

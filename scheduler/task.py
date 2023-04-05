@@ -1,9 +1,14 @@
+from typing import Any
+
 class Task:
-    def __init__(self, nbr_cycles: int, name) -> None:
+    def __init__(self, nbr_cycles: int, name: Any, enforce: bool = False) -> None:
         self._cycles: int = nbr_cycles
         self._remaining: int = nbr_cycles
         self._terminated: bool = False
-        self._name = name
+        self._name: Any = name
+        self._enforce: bool = enforce
+
+        self.paused: bool = True
     
     @property
     def name(self) -> str:
@@ -25,8 +30,11 @@ class Task:
     def terminated(self) -> bool:
         return self._terminated
 
-    def execute(self, cycles: int) -> None:
+    def execute(self, cycles: int) -> None:        
         self._remaining -= cycles
-        assert(self._remaining >= 0)
-        if (self._remaining == 0):
+        
+        if (self._remaining <= 0):
             self._terminated = True
+        
+        if self._enforce:
+            assert(self._remaining >= 0)
