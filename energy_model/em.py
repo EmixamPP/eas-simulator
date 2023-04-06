@@ -7,14 +7,10 @@ if TYPE_CHECKING:
 class EnergyModel:
     def __init__(self, cpus: list[CPU]) -> None:
         self._power_table: dict[PerfDom, list[PState]] = {}
-        self.perf_domains_name: list[PerfDom] = []
         self._cpus: list[CPU] = cpus
 
         for cpu in cpus:
-            perf_domain_name = cpu.type
-            if perf_domain_name not in self.perf_domains_name:
-                self.perf_domains_name.append(perf_domain_name)
-                self._power_table[perf_domain_name] = cpu.pstates
+            self._power_table[cpu.type] = cpu.pstates
 
     def compute_energy(self, landscape: dict[CPU, int]) -> tuple[int, int]:
         used_cycle: int = 0

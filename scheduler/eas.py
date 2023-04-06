@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     from energy_model import EnergyModel, Schedutil
     from cpu import CPU, PerfDom
 
-from math import inf, log2, ceil
+import math
 import heapq
 
 from scheduler import Task
@@ -15,12 +15,25 @@ from profiler import Profiler
 class EAS:
     def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EnergyModel, driver: Schedutil, sched_tick_period: int = 1) -> None:
         self._load_gen: LoadGenerator = load_gen
-        self._cpus: list[CPU] = cpus
         self._em: EnergyModel = em
         self._driver = driver
+
         self._sched_tick_period: int = sched_tick_period  # ms
-        self._run_queues: dict[CPU, RunQueue] = {
-            cpu: RunQueue() for cpu in cpus}
+
+        self._cpus: list[CPU] = cpus
+        self._perf_domains_name: list[PerfDom] = []
+        self._cpus_per_domain: dict[PerfDom, list[CPU]] = {}
+        self._run_queues: dict[CPU, RunQueue] = {}
+        for cpu in cpus:
+            perf_dom = cpu.type
+
+            if perf_dom not in self._perf_domains_name:
+                self._perf_domains_name.append(perf_dom)
+                self._cpus_per_domain[perf_dom] = []
+
+            self._cpus_per_domain[cpu.type].append(cpu)
+            self._run_queues[cpu] = RunQueue()
+
         self._idle_task = Task(-1, "idle")
 
     def run(self, time: int) -> None:
@@ -58,7 +71,7 @@ class EAS:
     def _load_balancer(self) -> None:
         used_cycles: int = 0
         idle_cpu: CPU | None = None
-        overloaded_cpu: tuple[CPU | None, int | float] = (None, -inf)
+        overloaded_cpu: tuple[CPU | None, int | float] = (None, -math.inf)
         for cpu in self._cpus:
             load: float = self._compute_load(cpu)
             if load == 0.0:
@@ -77,9 +90,9 @@ class EAS:
                 idle_runqueue.insert(task)
 
             if overloaded_runqueue.size != 0:
-                used_cycles += ceil(log2(overloaded_runqueue.size) * 2)
+                used_cycles += math.ceil(math.log2(overloaded_runqueue.size) * 2)
             if idle_runqueue.size != 0:
-                used_cycles += ceil(log2(idle_runqueue.size))
+                used_cycles += math.ceil(math.log2(idle_runqueue.size))
 
         # simulate the load balancer
         # cpus[0] is responsible of the scheduling group
@@ -120,16 +133,16 @@ class EAS:
 
         used_cycles += len(self._cpus) * 4
 
-        lowest_energy: int | float = inf
+        lowest_energy: int | float = math.inf
         energy_efficient_cpu: CPU | None = None
         landscape: dict[CPU, int] = {
             cpu: self._run_queues[cpu].cap for cpu in self._cpus}
 
         used_cycles += len(self._run_queues)
 
-        for domain in self._em.perf_domains_name:
+        for domain in self._perf_domains_name:
             cpu_candidate: CPU = lowest_util[domain]
-            landscape[cpu_candidate] += task.cycles
+            landscape[cpu_candidate] += task.remaining_cycles
 
             estimation, cycles = self._em.compute_energy(landscape)
             used_cycles += cycles
@@ -137,9 +150,9 @@ class EAS:
                 energy_efficient_cpu = cpu_candidate
                 lowest_energy = estimation
 
-            landscape[cpu_candidate] -= task.cycles
+            landscape[cpu_candidate] -= task.remaining_cycles
 
-        used_cycles += len(self._em.perf_domains_name) * 4
+        used_cycles += len(self._perf_domains_name) * 4
 
         # simulate the energy efficient wake up balancer
         Profiler.new_task()
