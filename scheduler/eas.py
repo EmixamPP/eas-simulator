@@ -24,14 +24,14 @@ class EAS:
         self._idle_task = Task(-1, "idle")
 
     def run(self, time: int) -> None:
-        for tick in range(time):
-            # every 1000 tick rebalance the load if CPU is over utilized (~ as CFS, which is every 1000ms)
-            if tick % 1000 == 0 and self._is_over_utilized():
+        for time_ms in range(0, time, self._sched_tick_period):
+            # every 1000ms rebalance the load if CPU is over utilized
+            if time_ms % 1000 == 0 and self._is_over_utilized():
                 self._load_balancer()
 
             # pick the next task to execute on each CPU
             for cpu in self._cpus:
-                # new task could be comes at each scheduler tick,
+                # we assume new task could be comes at each scheduler tick,
                 # and those task are assumed to never sleep or being blocked
                 new_task: Task | None = self._load_gen.gen()
                 if new_task is not None:
@@ -81,8 +81,10 @@ class EAS:
             if idle_runqueue.size != 0:
                 used_cycles += ceil(log2(idle_runqueue.size))
 
-        # responsible of the scheduling group
-        self._cpus[0].execute(Task(used_cycles, "balance"))
+        # simulate the load balancer
+        # cpus[0] is responsible of the scheduling group
+        Profiler.new_task()
+        self._run_queues[self._cpus[0]].insert_kernel_task(Task(used_cycles, "balance"))
 
     def _is_over_utilized(self) -> bool:
         for cpu in self._cpus:
@@ -91,12 +93,16 @@ class EAS:
         return False
 
     def _wake_up_balancer(self, by_cpu: CPU, task: Task) -> CPU:
-        if self._is_over_utilized():  # act as CFS
+        if self._is_over_utilized():
             best_cpu: CPU = by_cpu
             for cpu in self._cpus:
                 if self._run_queues[cpu].cap == 0:
                     best_cpu = cpu
-            by_cpu.execute(Task(3 * len(self._cpus), "balance"))
+
+            # simulate the wake up balancer
+            Profiler.new_task()
+            self._run_queues[by_cpu].insert_kernel_task(Task(3 * len(self._cpus), "balance"))
+
         else:
             best_cpu = self._find_energy_efficient_cpu(by_cpu, task)
 
@@ -135,7 +141,9 @@ class EAS:
 
         used_cycles += len(self._em.perf_domains_name) * 4
 
-        by_cpu.execute(Task(used_cycles, "energy"))
+        # simulate the energy efficient wake up balancer
+        Profiler.new_task()
+        self._run_queues[by_cpu].insert_kernel_task(Task(used_cycles, "energy"))
 
         assert(energy_efficient_cpu is not None)
         return energy_efficient_cpu
@@ -185,6 +193,7 @@ class _RunQueueNode():
 class RunQueue():
     def __init__(self):
         self._queue: list[_RunQueueNode] = []
+        self._kernel_queue: list[_RunQueueNode] = []
         self._total_cap: int = 0
 
     @property
@@ -192,9 +201,13 @@ class RunQueue():
         return len(self._queue)
 
     def pop_smallest_vr(self) -> None | Task:
-        if self.size == 0:
+        if len(self._kernel_queue) != 0:
+            task_node: _RunQueueNode = self._kernel_queue.pop(0)
+        elif self.size == 0:
             return None
-        task_node: _RunQueueNode = heapq.heappop(self._queue)
+        else:
+            task_node: _RunQueueNode = heapq.heappop(self._queue)
+        
         self._total_cap -= task_node.cap
         return task_node.task
 
@@ -217,3 +230,8 @@ class RunQueue():
         task_node = _RunQueueNode(task)
         self._total_cap += task_node.cap
         heapq.heappush(self._queue, task_node)
+    
+    def insert_kernel_task(self, task: Task):
+        task_node = _RunQueueNode(task)
+        self._total_cap += task_node.cap
+        self._kernel_queue.append(task_node)

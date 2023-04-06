@@ -6,8 +6,8 @@ class Profiler:
         self._total_energy: float = 0
         self._cpu_power_timestamp: dict[str, tuple[int, int]] = {}
 
-        # one index for each task type: common, energy, balance, idle
-        self._cycles_hist: list[int] = [0, 0, 0, 0]
+        # one index for each task type: common, energy, balance, idle, slack
+        self._cycles_hist: list[int] = [0, 0, 0, 0, 0]
 
         self._created_task: int = 0
         self._ended_task: int = 0
@@ -24,6 +24,8 @@ class Profiler:
                 i = 2
             case "idle":
                 i = 3
+            case "slack":
+                i = 4
         self._cycles_hist[i] += cycles
 
     def new_task(self) -> None:
@@ -50,12 +52,12 @@ class Profiler:
         return self._ended_task
 
     @property
-    def cycles_repartition(self) -> tuple[float, float, float, float]:
+    def cycles_repartition(self) -> tuple[float, float, float, float, float]:
         total_cycles = sum(self._cycles_hist)
         return tuple([i/total_cycles*100 for i in self._cycles_hist])
 
     @property
-    def cycles_hist(self) -> tuple[int, int, int, int]:
+    def cycles_hist(self) -> tuple[int, int, int, int, int]:
         return tuple(self._cycles_hist)
 
     @property

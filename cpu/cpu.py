@@ -16,11 +16,17 @@ class CPU:
         self._perf_domain: PerfDom = perf_domain
 
         self._pstate: PState = pstates[0]
-        self._time_ms: int = 0
+        self._time_ms: int = 0 # should reflect the actual execution time of EAS
         Profiler.update_power_consumption(self.pstate[1], 0, self.name)
 
         # maximum number of instructions executed by sec
         self._max_capacity: int = self.pstate[0]
+    
+    def restart(self):
+        self._pstate = self.pstates[0]
+        self._time_ms = 0
+        Profiler.update_power_consumption(self.pstate[1], 0, self.name)
+
 
     @property
     def name(self) -> Any:
@@ -50,16 +56,9 @@ class CPU:
             task.execute(cycles)
         except AssertionError:
             Profiler.executed_for(task.name, remaining_cycles)
-            Profiler.executed_for("idle", cycles - remaining_cycles)
+            Profiler.executed_for("slack", cycles - remaining_cycles)
         else:
             Profiler.executed_for(task.name, cycles)
-
-    def execute(self, task: Task) -> None:
-        cycles: int = task.remaining_cycles
-        self._time_ms += math.floor(cycles / 10**-3 / self.pstate[0])
-
-        task.execute(cycles)
-        Profiler.executed_for(task.name, cycles)
 
     @property
     def max_capacity(self) -> int:

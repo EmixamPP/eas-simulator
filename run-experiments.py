@@ -1,3 +1,5 @@
+#!/bin/python
+
 import math
 import numpy as np
 
@@ -19,10 +21,10 @@ if __name__ == "__main__":
 
     versions: list[type] = [EAS, EASOverutilDisabled]
     # Profier: total_energy, cycles_hist, created_task/ended_task
-    versions_hist: dict[type, tuple[list[int], list[tuple[int, int, int, int]], list[float]]] = {
+    versions_hist: dict[type, tuple[list[int], list[tuple[int, int, int, int, int]], list[float]]] = {
         version: ([], [], []) for version in versions}
 
-    for i in range(100):
+    for i in range(30):
         for version in versions:
             loadgenerator: LoadGenerator = LoadGenerator(
                 pick_distrib_ints, max_distrib_insts, 0.99, i)
@@ -35,6 +37,8 @@ if __name__ == "__main__":
                 Profiler.ended_task/Profiler.created_task*100)
 
             Profiler.reset()
+            for cpu in cpus:
+                cpu.restart()
 
     for version in versions:
         print(version.__name__)

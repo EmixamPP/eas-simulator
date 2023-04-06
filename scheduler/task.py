@@ -7,8 +7,6 @@ class Task:
         self._terminated: bool = False
         self._name: Any = name
         self._enforce: bool = enforce
-
-        self.paused: bool = True
     
     @property
     def name(self) -> str:
