@@ -1,57 +1,89 @@
 #!/bin/python
-
+from typing import Any
 import math
 import numpy as np
 
-from scheduler import EAS, LoadGenerator, EASOverutilDisabled
+
+from scheduler import EAS, LoadGenerator, EASOverutilDisabled, EASOverutilTwolimits, EASOverutilManycores, EASOverutilTwolimitsManycores, EASCorechoiceNextfit
 from energy_model import Schedutil, EnergyModel
-from cpu import CPU, PerfDom, PState
+from cpu import CPU, CPUGenerator
 from profiler import Profiler
 
 if __name__ == "__main__":
-    # TODO faire la  règle quadratic de l'énergie (voir mémoire)
-    cpus: list[CPU] = [
-        CPU(PerfDom("lowpower"), [PState((10**9, 50))], "cpu0"),
-        CPU(PerfDom("performance"), [PState((3 * 10**9, 50))], "cpu1")
+    versions: list[type] = [
+        EAS, 
+        #EASOverutilDisabled, 
+        #EASOverutilTwolimits, 
+        #EASOverutilManycores, 
+        #EASOverutilTwolimitsManycores, 
+        EASCorechoiceNextfit
     ]
+
+    cpus: list[CPU] = CPUGenerator.gen(little=64, middle=64, big=64)
     em: EnergyModel = EnergyModel(cpus)
     driver: Schedutil = Schedutil(cpus)
-    pick_distrib_ints: int = math.floor(0.25 * 10**9)
-    max_distrib_insts: int = math.floor(0.5 * 10**9)
 
-    versions: list[type] = [EAS, EASOverutilDisabled]
-    # Profier: total_energy, cycles_hist, created_task/ended_task
-    versions_hist: dict[type, tuple[list[int], list[tuple[int, int, int, int, int]], list[float]]] = {
-        version: ([], [], []) for version in versions}
+    random_seed: int = 1
+    pick_distrib_ints: int = math.floor(0.5 * 10**9)
+    max_distrib_insts: int = math.floor(1 * 10**9)
+    create_task_prob: float = 0.995
+    load_generators: dict[type, LoadGenerator] = {version: LoadGenerator(pick_distrib_ints, max_distrib_insts, create_task_prob, random_seed) for version in versions}
 
-    for i in range(30):
+    # perform experiences and store observations
+    diff_hist: dict[type, tuple[list[float], list[float], list[float], list[float], list[float], list[float]]] = {version: ([], [], [], [], [], []) for version in versions[1:]}
+    for i in range(1):
+        print(f"Repitition {i}")
+        eas_hist = (0, 0, 0, 0, 0, 0)
         for version in versions:
-            loadgenerator: LoadGenerator = LoadGenerator(
-                pick_distrib_ints, max_distrib_insts, 0.99, i)
-            scheduler = version(loadgenerator, cpus, em, driver)
+            print(f"\t{version.__name__}")
+            scheduler = version(load_generators[version], cpus, em, driver)
             scheduler.run(60000)
 
-            versions_hist[version][0].append(Profiler.total_energy)
-            versions_hist[version][1].append(Profiler.cycles_hist)
-            versions_hist[version][2].append(
-                Profiler.ended_task/Profiler.created_task*100)
+            power = Profiler.total_energy
+            task_cycles = Profiler.cycles_hist[0]
+            energy_cycles = Profiler.cycles_hist[1]
+            balance_cycles = Profiler.cycles_hist[2]
+            idle_cycles = Profiler.cycles_hist[3]
+            terminated_task_ratio = Profiler.ended_task / Profiler.created_task * 100
 
+            if version == EAS:
+                eas_hist = (power, task_cycles, energy_cycles, balance_cycles, idle_cycles, terminated_task_ratio)
+            else:
+                hist = diff_hist[version]
+                hist[0].append((power / eas_hist[0]  - 1) * 100)
+                hist[1].append((task_cycles / eas_hist[1] - 1) * 100)
+                hist[2].append((energy_cycles / eas_hist[2] - 1) * 100)
+                hist[3].append((balance_cycles / eas_hist[3] - 1) * 100)
+                hist[4].append((idle_cycles / eas_hist[4] - 1) * 100)
+                hist[5].append((terminated_task_ratio / eas_hist[5] - 1) * 100)
+
+            #print(Profiler.created_task, Profiler.ended_task)
             Profiler.reset()
             for cpu in cpus:
                 cpu.restart()
 
-    for version in versions:
-        print(version.__name__)
-        print("\tenergy: ", np.mean(versions_hist[version][0]))
-        print("\tcycles: ", np.mean(versions_hist[version][1], axis=0))
-        print("\tterminated: ", np.mean(versions_hist[version][2]), "%")
+    # compute means and variances of difference history
+    diff_mean_var: dict[type, dict[str, tuple[Any, Any]]] = {version: {} for version in versions[1:]}
+    for version in versions[1:]:
+        mean_var = diff_mean_var[version]
+        hist = diff_hist[version]
+        mean_var["total_energy"] = (np.mean(hist[0]), np.var(hist[0]))
+        mean_var["task"] = (np.mean(hist[1]), np.var(hist[1]))
+        mean_var["energy"] = (np.mean(hist[2]), np.var(hist[2]))
+        mean_var["balance"] = (np.mean(hist[3]), np.var(hist[3]))
+        mean_var["idle"] = (np.mean(hist[4]), np.var(hist[4]))
+        mean_var["terminated"] = (np.mean(hist[5]), np.var(hist[5]))
 
+    # output results
+    with open("results.csv", "w") as f:
+        f.write("Version,Energy mean,Energy var,Task cycles mean,Task cycles var,Energy cycles mean,Energy cycles var,Balance cycles mean,Balance cycles var,Idle cycles mean,Idle cycles var,Terminated mean,Terminated var\n")
+        for version in versions[1:]:
+            mean_var = diff_mean_var[version]
+            f.write("{},".format(version.__name__))
+            f.write("{},{},".format(np.round(mean_var["total_energy"][0], 2), np.round(mean_var["total_energy"][1], 2)))
+            f.write("{},{},".format(np.round(mean_var["task"][0], 2), np.round(mean_var["task"][1], 2)))
+            f.write("{},{},".format(np.round(mean_var["energy"][0], 2), np.round(mean_var["energy"][1], 2)))
+            f.write("{},{},".format(np.round(mean_var["balance"][0], 2), np.round(mean_var["balance"][1], 2)))
+            f.write("{},{},".format(np.round(mean_var["idle"][0], 2), np.round(mean_var["idle"][1], 2)))
+            f.write("{},{}\n".format(np.round(mean_var["terminated"][0], 2), np.round(mean_var["terminated"][1], 2)))
 
-# répéter l'expérience ?X? fois
-#
-# faire la somme de l'énergie
-# montrer l'energie relative au vanilla EAS (un graph à barre, represantant chaque répititon de l'expérience)
-# dire de cb de % en moyenne il a été meilleur ou pire
-#
-# faire la répartition common/idle/energy/balance en % relative au vinilla EAS (un graph à barre avec niveau)
-# dire en moyenne cb de % il a de common+idle en + (meilleur troughput PLEASE)

@@ -10,7 +10,7 @@ PState = NewType('PState', tuple[int, int])  # (capacity, power)
 
 class CPU:
     def __init__(self, perf_domain: PerfDom, pstates: list[PState], name: Any) -> None:
-        self._name: Any = name
+        self.name: Any = name
         # assume sorted in increasing order
         self.pstates: list[PState] = pstates
         self._perf_domain: PerfDom = perf_domain
@@ -26,11 +26,6 @@ class CPU:
         self._pstate = self.pstates[0]
         self._time_ms = 0
         Profiler.update_power_consumption(self.pstate[1], 0, self.name)
-
-
-    @property
-    def name(self) -> Any:
-        return self._name
 
     @property
     def pstate(self) -> PState:

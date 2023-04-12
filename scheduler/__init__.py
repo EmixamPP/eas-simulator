@@ -2,3 +2,7 @@ from scheduler.task import Task
 from scheduler.load_gen import LoadGenerator
 from scheduler.eas import EAS, RunQueue
 from scheduler.eas_overutil_disabled import EASOverutilDisabled
+from scheduler.eas_overutil_manycores import EASOverutilManycores
+from scheduler.eas_overutil_twolimits import EASOverutilTwolimits
+from scheduler.eas_overutil_manycore_twolimits import EASOverutilTwolimitsManycores
+from scheduler.eas_corechoice_nextfit import EASCorechoiceNextfit

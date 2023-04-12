@@ -8,7 +8,6 @@ if TYPE_CHECKING:
 import math
 
 from scheduler import Task, EAS
-from profiler import Profiler
 
 class EASCorechoiceNextfit(EAS):
     def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EnergyModel, driver: Schedutil, sched_tick_period: int = 1) -> None:
@@ -23,14 +22,14 @@ class EASCorechoiceNextfit(EAS):
             cpus = self._cpus_per_domain[domain]
             i: int = self._best_cpu_index[domain]
             previous_best_cpu_load: float = self._compute_load(cpus[i])
-            cpu: CPU = cpus[++i]
+            i = (i+1) % len(cpus)
             used_cycles += 4
 
-            while self._compute_load(cpu) <= previous_best_cpu_load:
-                cpu: CPU = cpus[++i]
+            while self._compute_load(cpus[i]) < previous_best_cpu_load:
+                i = (i+1) % len(cpus)
                 used_cycles += 4
 
-            candidates[domain] = cpu
+            candidates[domain] = cpus[i]
 
         lowest_energy: int | float = math.inf
         energy_efficient_cpu: CPU | None = None
@@ -43,7 +42,7 @@ class EASCorechoiceNextfit(EAS):
             cpu_candidate: CPU = candidates[domain]
             landscape[cpu_candidate] += task.remaining_cycles
 
-            estimation, cycles = self._em.compute_energy(landscape)
+            estimation, cycles = self._em.compute_power(landscape)
             used_cycles += cycles
             if lowest_energy > estimation:
                 energy_efficient_cpu = cpu_candidate
@@ -54,7 +53,6 @@ class EASCorechoiceNextfit(EAS):
         used_cycles += len(self._perf_domains_name) * 4
 
         # simulate the energy efficient wake up balancer
-        Profiler.new_task()
         self._run_queues[by_cpu].insert_kernel_task(Task(used_cycles, "energy"))
 
         assert(energy_efficient_cpu is not None)

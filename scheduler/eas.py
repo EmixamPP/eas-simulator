@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 
 import math
 import heapq
+import random
 
 from scheduler import Task
 from profiler import Profiler
@@ -44,14 +45,15 @@ class EAS:
 
             # pick the next task to execute on each CPU
             for cpu in self._cpus:
-                # we assume new task could be comes at each scheduler tick,
+                # we assume new task could be comes at each scheduler tick
+                # on a random processor
                 # and those task are assumed to never sleep or being blocked
                 new_task: Task | None = self._load_gen.gen()
                 if new_task is not None:
                     Profiler.new_task()
-                    best_cpu: CPU = self._wake_up_balancer(cpu, new_task)
+                    best_cpu: CPU = self._wake_up_balancer(random.choice(self._cpus), new_task)
                     self._run_queues[best_cpu].insert(new_task)
-
+                    
                 queue: RunQueue = self._run_queues[cpu]
                 task: Task | None = queue.pop_smallest_vr()
                 if task is None:
@@ -61,15 +63,14 @@ class EAS:
                 if task.name != "idle":
                     if not task.terminated:
                         queue.insert(task)
-                    else:
+                    elif task.name not in  ("energy", "balance"):
                         Profiler.end_task()
-
 
             self._driver.update(self._run_queues)
 
     # extremely simplefied compared to CFS implementation
     def _load_balancer(self) -> None:
-        used_cycles: int = 0
+        complexity: int = 0
         idle_cpu: CPU | None = None
         overloaded_cpu: tuple[CPU | None, int | float] = (None, -math.inf)
         for cpu in self._cpus:
@@ -79,7 +80,7 @@ class EAS:
             elif overloaded_cpu[1] < load:
                 overloaded_cpu = (cpu, load)
 
-        used_cycles += 5 * len(self._cpus)
+        complexity += len(self._cpus)
 
         if idle_cpu is not None:
             assert(overloaded_cpu[0] is not None)
@@ -89,15 +90,14 @@ class EAS:
             if task is not None:
                 idle_runqueue.insert(task)
 
-            if overloaded_runqueue.size != 0:
-                used_cycles += math.ceil(math.log2(overloaded_runqueue.size) * 2)
-            if idle_runqueue.size != 0:
-                used_cycles += math.ceil(math.log2(idle_runqueue.size))
+            if task is not None:
+                complexity += math.ceil(math.log2(overloaded_runqueue.size + 1) * 2)
+                if idle_runqueue.size - 1 > 0:
+                    complexity += math.ceil(math.log2(idle_runqueue.size - 1))
 
         # simulate the load balancer
         # cpus[0] is responsible of the scheduling group
-        Profiler.new_task()
-        self._run_queues[self._cpus[0]].insert_kernel_task(Task(used_cycles, "balance"))
+        self._run_queues[self._cpus[0]].insert_kernel_task(Task(100 * complexity, "balance"))
 
     def _is_over_utilized(self) -> bool:
         for cpu in self._cpus:
@@ -113,8 +113,7 @@ class EAS:
                     best_cpu = cpu
 
             # simulate the wake up balancer
-            Profiler.new_task()
-            self._run_queues[by_cpu].insert_kernel_task(Task(3 * len(self._cpus), "balance"))
+            self._run_queues[by_cpu].insert_kernel_task(Task(10 * len(self._cpus), "balance"))
 
         else:
             best_cpu = self._find_energy_efficient_cpu(by_cpu, task)
@@ -122,44 +121,35 @@ class EAS:
         return best_cpu
 
     def _find_energy_efficient_cpu(self, by_cpu: CPU, task: Task) -> CPU:
-        used_cycles: int = 0
-        lowest_util: dict[PerfDom, CPU] = {}
-        # find in each domain the cpu with the lower util
-        for cpu in self._cpus:
-            domain: PerfDom = cpu.type
-            load: float = self._compute_load(cpu)
-            if domain not in lowest_util or self._compute_load(lowest_util[domain]) > load:
-                lowest_util[domain] = cpu
-
-        used_cycles += len(self._cpus) * 4
-
-        lowest_energy: int | float = math.inf
-        energy_efficient_cpu: CPU | None = None
-        landscape: dict[CPU, int] = {
-            cpu: self._run_queues[cpu].cap for cpu in self._cpus}
-
-        used_cycles += len(self._run_queues)
+        complexity: int = 0
+        best_cpu: CPU | None = None
+        best_cpu_power: int | float = math.inf
+        landscape: dict[CPU, int] = {cpu: self._run_queues[cpu].cap for cpu in self._cpus}
 
         for domain in self._perf_domains_name:
-            cpu_candidate: CPU = lowest_util[domain]
-            landscape[cpu_candidate] += task.remaining_cycles
+            best_cpu_domain: CPU | None = None
+            best_cpu_power_domain: int | float = math.inf
+            for cpu in self._cpus_per_domain[domain]:
+                landscape[cpu] += task.remaining_cycles
+                power, em_complexity = self._em.compute_power(landscape)
+                
+                if power < best_cpu_power_domain:
+                    best_cpu_domain = cpu
+                    best_cpu_power_domain = power
+                complexity += em_complexity
 
-            estimation, cycles = self._em.compute_energy(landscape)
-            used_cycles += cycles
-            if lowest_energy > estimation:
-                energy_efficient_cpu = cpu_candidate
-                lowest_energy = estimation
+                landscape[cpu] -= task.remaining_cycles
 
-            landscape[cpu_candidate] -= task.remaining_cycles
+            if best_cpu_power_domain < best_cpu_power:
+                best_cpu = best_cpu_domain
+                best_cpu_power = best_cpu_power_domain   
+            complexity += len(self._cpus_per_domain[domain])             
 
-        used_cycles += len(self._perf_domains_name) * 4
+        # simulate the energy efficient wake-up balancer
+        self._run_queues[by_cpu].insert_kernel_task(Task(100 * complexity, "energy"))
 
-        # simulate the energy efficient wake up balancer
-        Profiler.new_task()
-        self._run_queues[by_cpu].insert_kernel_task(Task(used_cycles, "energy"))
-
-        assert(energy_efficient_cpu is not None)
-        return energy_efficient_cpu
+        assert(best_cpu is not None)
+        return best_cpu
 
     def _compute_load(self, cpu: CPU) -> float:
         return self._run_queues[cpu].cap / cpu.max_capacity * 100

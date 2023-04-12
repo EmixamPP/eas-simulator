@@ -9,5 +9,5 @@ class EMenhanced(EnergyModel):
     def __init__(self, cpus: list[CPU]) -> None:
         super().__init__(cpus)
     
-    def compute_energy(self, landscape: dict[CPU, int]) -> int:
+    def compute_power(self, landscape: dict[CPU, int]) -> int:
         return 0 # TODO
