@@ -17,16 +17,17 @@ class EnergyModel:
         total_power: int = 0
 
         for cpu in self._cpus:
-            capacity: int = landscape[cpu]
-            power: int = 0
+            if cpu in landscape:
+                capacity: int = landscape[cpu]
+                power: int = 0
 
-            # assume sorted in increasing order
-            for pstate in self._power_table[cpu.type]:
-                power = pstate[1]
-                if pstate[0] > capacity:
-                    break
+                # assume sorted in increasing order
+                for pstate in self._power_table[cpu.type]:
+                    power = pstate[1]
+                    if pstate[0] > capacity:
+                        break
 
-            total_power += power
-            complexity += len(self._power_table[cpu.type])
+                total_power += power
+                complexity += len(self._power_table[cpu.type])
 
         return total_power, complexity

@@ -19,7 +19,7 @@ if __name__ == "__main__":
         EASCorechoiceNextfit
     ]
 
-    cpus: list[CPU] = CPUGenerator.gen(little=64, middle=64, big=64)
+    cpus: list[CPU] = CPUGenerator.gen(little=4, middle=4, big=4)
     em: EnergyModel = EnergyModel(cpus)
     driver: Schedutil = Schedutil(cpus)
 
@@ -59,8 +59,8 @@ if __name__ == "__main__":
 
             #print(Profiler.created_task, Profiler.ended_task)
             Profiler.reset()
-            for cpu in cpus:
-                cpu.restart()
+            for candidate in cpus:
+                candidate.restart()
 
     # compute means and variances of difference history
     diff_mean_var: dict[type, dict[str, tuple[Any, Any]]] = {version: {} for version in versions[1:]}

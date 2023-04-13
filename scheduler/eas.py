@@ -122,28 +122,30 @@ class EAS:
 
     def _find_energy_efficient_cpu(self, by_cpu: CPU, task: Task) -> CPU:
         complexity: int = 0
+        
+        candidates: list[CPU] = []
+        for domain in self._perf_domains_name:
+            candidate: CPU = self._cpus_per_domain[domain][0]
+            candidate_cap: int = self._run_queues[candidate].cap
+            for cpu in self._cpus_per_domain[domain][1:]:
+                capacity = self._run_queues[cpu].cap
+                if capacity < candidate_cap:
+                    candidate = cpu
+                    candidate_cap = capacity
+            candidates.append(candidate)
+            complexity += len(self._cpus_per_domain[domain])
+
         best_cpu: CPU | None = None
         best_cpu_power: int | float = math.inf
         landscape: dict[CPU, int] = {cpu: self._run_queues[cpu].cap for cpu in self._cpus}
-
-        for domain in self._perf_domains_name:
-            best_cpu_domain: CPU | None = None
-            best_cpu_power_domain: int | float = math.inf
-            for cpu in self._cpus_per_domain[domain]:
-                landscape[cpu] += task.remaining_cycles
-                power, em_complexity = self._em.compute_power(landscape)
-                
-                if power < best_cpu_power_domain:
-                    best_cpu_domain = cpu
-                    best_cpu_power_domain = power
-                complexity += em_complexity
-
-                landscape[cpu] -= task.remaining_cycles
-
-            if best_cpu_power_domain < best_cpu_power:
-                best_cpu = best_cpu_domain
-                best_cpu_power = best_cpu_power_domain   
-            complexity += len(self._cpus_per_domain[domain])             
+        for candidate in candidates:
+            landscape[candidate] += task.remaining_cycles
+            power, em_complexity = self._em.compute_power(landscape)
+            landscape[candidate] -= task.remaining_cycles
+            if power < best_cpu_power:
+                best_cpu = candidate
+                best_cpu_power = power
+            complexity += em_complexity             
 
         # simulate the energy efficient wake-up balancer
         self._run_queues[by_cpu].insert_kernel_task(Task(100 * complexity, "energy"))
