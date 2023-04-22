@@ -38,7 +38,7 @@ class EASCorechoiceNextfit(EAS):
 
         best_cpu: CPU | None = None
         best_cpu_power: int | float = math.inf
-        landscape: dict[CPU, int] = {cpu: self._run_queues[cpu].cap for cpu in self._cpus}
+        landscape: dict[CPU, int] = {cpu: self._run_queues[cpu].cap for cpu in candidates}
         for init_candidate in candidates:
             landscape[init_candidate] += task.remaining_cycles
             power, em_complexity = self._em.compute_power(landscape)

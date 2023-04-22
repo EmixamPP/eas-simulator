@@ -39,6 +39,9 @@ class EAS:
 
     def run(self, time: int) -> None:
         for time_ms in range(0, time, self._sched_tick_period):
+            # update P-States
+            self._driver.update(self._run_queues)
+
             # every 1000ms rebalance the load if CPU is over utilized
             if time_ms % 1000 == 0 and self._is_over_utilized():
                 self._load_balancer()
@@ -65,8 +68,6 @@ class EAS:
                         queue.insert(task)
                     elif task.name not in  ("energy", "balance"):
                         Profiler.end_task()
-
-            self._driver.update(self._run_queues)
 
     # extremely simplefied compared to CFS implementation
     def _load_balancer(self) -> None:
@@ -137,7 +138,7 @@ class EAS:
 
         best_cpu: CPU | None = None
         best_cpu_power: int | float = math.inf
-        landscape: dict[CPU, int] = {cpu: self._run_queues[cpu].cap for cpu in self._cpus}
+        landscape: dict[CPU, int] = {cpu: self._run_queues[cpu].cap for cpu in candidates}
         for candidate in candidates:
             landscape[candidate] += task.remaining_cycles
             power, em_complexity = self._em.compute_power(landscape)
@@ -157,7 +158,7 @@ class EAS:
         return self._run_queues[cpu].cap / cpu.max_capacity * 100
 
 
-### easier to implement heap queue instead of Red Black tree, but nothing change for our analyses ###
+### it was easier to implement heap queue instead of red black tree, but nothing change for our analyses ###
 class _RunQueueNode():
     def __init__(self, task: Task):
         self._task: Task = task
