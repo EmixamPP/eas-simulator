@@ -2,7 +2,7 @@
 from typing import Any
 import math
 import numpy as np
-import threading
+import multiprocessing
 
 from scheduler import EAS, LoadGenerator, EASOverutilDisabled, EASOverutilTwolimits, EASOverutilManycores, EASOverutilTwolimitsManycores, EASCorechoiceNextfit
 from energy_model import Schedutil, EnergyModel
@@ -76,7 +76,7 @@ def run_experiment_on(cpus, cpus_description):
         mean_var["balance"] = (np.mean(hist[3]), np.var(hist[3]))
         mean_var["idle"] = (np.mean(hist[4]), np.var(hist[4]))
         mean_var["terminated"] = (np.mean(hist[5]), np.var(hist[5]))
-
+    return
     # output results
     with open(f"results_{cpus_description}.csv".replace(" ", "_"), "w") as f:
         f.write("Version,Energy mean,Energy var,Task cycles mean,Task cycles var,Energy cycles mean,Energy cycles var,Balance cycles mean,Balance cycles var,Idle cycles mean,Idle cycles var,Terminated mean,Terminated var\n")
@@ -111,12 +111,12 @@ if __name__ == "__main__":
         (CPUGenerator.gen(little=32, middle=32, big=32), "32 little 32 middle 32 big")
     ]
 
-    threads = []
+    processes = []
     for cpus, cpus_description in cpus_list:
-        thread = threading.Thread(
+        proc = multiprocessing.Process(
             target=run_experiment_on, args=(cpus, cpus_description))
-        thread.start()
-        threads.append(thread)
+        proc.start()
+        processes.append(proc)
 
-    for thread in threads:
-        thread.join()
+    for proc in processes:
+        proc.join()
