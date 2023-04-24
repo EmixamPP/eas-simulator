@@ -3,15 +3,16 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from cpu import CPU, PerfDom
     from scheduler import LoadGenerator
-    from energy_model import EnergyModel, Schedutil
+    from energy_model import EnergyModel
+    from profiler import Profiler
 
 import math
 
 from scheduler import Task, EAS
 
 class EASCorechoiceNextfit(EAS):
-    def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EnergyModel, driver: Schedutil, sched_tick_period: int = 1) -> None:
-        super().__init__(load_gen, cpus, em, driver, sched_tick_period)
+    def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EnergyModel, profiler: Profiler, sched_tick_period: int = 1) -> None:
+        super().__init__(load_gen, cpus, em, profiler, sched_tick_period)
         self._best_cpu_index: dict[PerfDom, int] = {domain: 0 for domain in self._perf_domains_name}
     
     def _find_energy_efficient_cpu(self, by_cpu: CPU, task: Task) -> CPU:
@@ -39,14 +40,14 @@ class EASCorechoiceNextfit(EAS):
         best_cpu: CPU | None = None
         best_cpu_power: int | float = math.inf
         landscape: dict[CPU, int] = {cpu: self._run_queues[cpu].cap for cpu in candidates}
-        for init_candidate in candidates:
-            landscape[init_candidate] += task.remaining_cycles
+        for candidate in candidates:
+            landscape[candidate] += task.remaining_cycles
             power, em_complexity = self._em.compute_power(landscape)
-            landscape[init_candidate] -= task.remaining_cycles
+            landscape[candidate] -= task.remaining_cycles
             if power < best_cpu_power:
-                best_cpu = init_candidate
+                best_cpu = candidate
                 best_cpu_power = power
-            complexity += em_complexity             
+            complexity += em_complexity
 
         # simulate the energy efficient wake-up balancer
         self._run_queues[by_cpu].insert_kernel_task(Task(100 * complexity, "energy"))

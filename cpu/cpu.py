@@ -1,8 +1,11 @@
-from typing import NewType, Any
+from __future__ import annotations
+from typing import TYPE_CHECKING, NewType, Any
+if TYPE_CHECKING:
+    from profiler import Profiler
+
 import math
 
 from scheduler import Task
-from profiler import Profiler
 
 PerfDom = NewType('PerfDom', str)
 PState = NewType('PState', tuple[int, int])  # (capacity, power)
@@ -13,23 +16,20 @@ class CPU:
     # One Core == One Logical CPU
 
     def __init__(self, perf_domain: PerfDom, pstates: list[PState], name: Any) -> None:
-        self.name: Any = name
+        self.name: Any = name        
         # assume sorted in increasing order
         self.pstates: list[PState] = pstates
         self._perf_domain: PerfDom = perf_domain
 
-        self._pstate: PState = pstates[0]
-        self._time_ms: int = 0  # should reflect the actual execution time of EAS
-        Profiler.update_power_consumption(self.pstate[1], 0, self.name)
-
         # maximum number of instructions executed by sec
-        self._max_capacity: int = self.pstate[0]
+        self._max_capacity: int = pstates[-1][0]
 
-    def restart(self):
-        self._pstate = self.pstates[0]
-        self._time_ms = 0
-        Profiler.update_power_consumption(self.pstate[1], 0, self.name)
-
+    def start(self, profiler: Profiler):
+        self._pstate: PState = self.pstates[0]
+        self._time_ms: int = 0  # should reflect the actual execution time of EAS
+        self.profiler: Profiler = profiler
+        profiler.update_power_consumption(self.pstate[1], 0, self.name)
+        
     @property
     def pstate(self) -> PState:
         return self._pstate
@@ -37,7 +37,7 @@ class CPU:
     @pstate.setter
     def pstate(self, pstate: PState) -> None:
         assert(pstate in self.pstates)
-        Profiler.update_power_consumption(pstate[1], self._time_ms, self.name)
+        self.profiler.update_power_consumption(pstate[1], self._time_ms, self.name)
         self._pstate = pstate
 
     @property
@@ -53,10 +53,10 @@ class CPU:
         try:
             task.execute(cycles)
         except AssertionError:
-            Profiler.executed_for(task.name, remaining_cycles)
-            Profiler.executed_for("slack", cycles - remaining_cycles)
+            self.profiler.executed_for(task.name, remaining_cycles)
+            self.profiler.executed_for("slack", cycles - remaining_cycles)
         else:
-            Profiler.executed_for(task.name, cycles)
+            self.profiler.executed_for(task.name, cycles)
 
     @property
     def max_capacity(self) -> int:

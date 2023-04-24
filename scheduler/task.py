@@ -1,7 +1,7 @@
 from typing import Any
 
 class Task:
-    def __init__(self, nbr_cycles: int, name: Any, enforce: bool = False) -> None:
+    def __init__(self, nbr_cycles: int, name: Any, enforce: bool = True) -> None:
         self._cycles: int = nbr_cycles
         self._remaining: int = nbr_cycles
         self._terminated: bool = False

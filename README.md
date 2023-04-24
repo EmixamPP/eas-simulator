@@ -1,5 +1,5 @@
 # eas-simulator
-Simplified simulator/profiler for the Linux Energy Aware Scheduler and modified versions from of my master thesis.
+Simplified simulator/profiler for the Linux Energy Aware Scheduler and modified versions from my master thesis.
 
 The code do not contains doc string, but it should be self-documented and some lines are commented. In addition, the code is fully statically typed. 
 

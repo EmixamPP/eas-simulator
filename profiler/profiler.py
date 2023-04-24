@@ -39,7 +39,7 @@ class Profiler:
             previous_power = self._cpu_power_timestamp[cpu_name][0]
             previous_timestamp = self._cpu_power_timestamp[cpu_name][1]
             self._total_energy += previous_power * \
-                (timestamp_ms - previous_timestamp)  # TODO * 10**-3
+                (timestamp_ms - previous_timestamp)  # TODO * 10**-3 ?
 
         self._cpu_power_timestamp[cpu_name] = (power, timestamp_ms)
 

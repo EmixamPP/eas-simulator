@@ -16,7 +16,7 @@ class LoadGenerator:
         insts: int = int(self._insts_generator.triangular(
             10, self._insts_peak_distrib, self._max_instructions))
         self._uuid += 1
-        return Task(insts, self._uuid, True)
+        return Task(insts, self._uuid)
 
     def __next__(self) -> None | Task:
         return self.gen()
