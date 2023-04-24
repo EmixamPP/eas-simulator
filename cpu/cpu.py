@@ -26,9 +26,8 @@ class CPU:
 
     def start(self, profiler: Profiler):
         self._pstate: PState = self.pstates[0]
-        self._time_ms: int = 0  # should reflect the actual execution time of EAS
         self.profiler: Profiler = profiler
-        profiler.update_power_consumption(self.pstate[1], 0, self.name)
+        profiler.update_power_consumption(self.pstate[1], self.name)
         
     @property
     def pstate(self) -> PState:
@@ -37,7 +36,7 @@ class CPU:
     @pstate.setter
     def pstate(self, pstate: PState) -> None:
         assert(pstate in self.pstates)
-        self.profiler.update_power_consumption(pstate[1], self._time_ms, self.name)
+        self.profiler.update_power_consumption(pstate[1], self.name)
         self._pstate = pstate
 
     @property
@@ -48,7 +47,6 @@ class CPU:
         cycles: int = math.ceil(self.pstate[0] * time_ms * 10**-3)
 
         remaining_cycles = task.remaining_cycles
-        self._time_ms += time_ms
 
         try:
             task.execute(cycles)

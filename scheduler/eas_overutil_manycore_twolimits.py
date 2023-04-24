@@ -4,14 +4,13 @@ if TYPE_CHECKING:
     from scheduler import LoadGenerator
     from energy_model import EnergyModel
     from cpu import CPU
-    from profiler import Profiler
 
 from scheduler import EAS
 
 class EASOverutilTwolimitsManycores(EAS):
-    def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EnergyModel, profiler: Profiler, sched_tick_period: int = 1) -> None:
+    def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EnergyModel, sched_tick_period: int = 1) -> None:
         self._was_over_utilized = False
-        super().__init__(load_gen, cpus, em, profiler, sched_tick_period)
+        super().__init__(load_gen, cpus, em, sched_tick_period)
 
     def _is_over_utilized(self) -> bool:
         above_lower_limit = False

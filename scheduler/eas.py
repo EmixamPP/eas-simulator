@@ -4,21 +4,22 @@ if TYPE_CHECKING:
     from scheduler import LoadGenerator
     from energy_model import EnergyModel
     from cpu import CPU, PerfDom
-    from profiler import Profiler
 
 import math
 import heapq
 import random
 
-from scheduler import Task
+from scheduler import Task, Clock
 from energy_model import Schedutil
+from profiler import Profiler
 
 class EAS:
-    def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EnergyModel, profiler: Profiler, sched_tick_period: int = 1) -> None:
+    def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EnergyModel, sched_tick_period: int = 1) -> None:
         self._load_gen: LoadGenerator = load_gen
         self._em: EnergyModel = em
 
-        self.profiler = profiler
+        self._clock = Clock() 
+        self.profiler = Profiler(self._clock)
 
         self._sched_tick_period: int = sched_tick_period  # ms
 
@@ -36,14 +37,14 @@ class EAS:
             self._cpus_per_domain[cpu.type].append(cpu)
             self._run_queues[cpu] = RunQueue()
 
-            cpu.start(profiler)
+            cpu.start(self.profiler)
 
         self._idle_task = Task(-1, "idle", enforce=False)
 
     def run(self, time: int) -> None:
-        for time_ms in range(0, time, self._sched_tick_period):
+        while self._clock.time < time:
             # every 1000ms rebalance the load if CPU is over utilized
-            if time_ms % 1000 == 0 and self._is_over_utilized():
+            if self._clock.time % 1000 == 0 and self._is_over_utilized():
                 self._load_balancer()
 
             # pick the next task to execute on each CPU
@@ -72,6 +73,8 @@ class EAS:
                         queue.insert(task)
                     elif task.name not in  ("energy", "balance"):
                         self.profiler.end_task()
+        
+            self._clock.inc_ms(self._sched_tick_period)
 
     # extremely simplefied compared to CFS implementation
     def _load_balancer(self) -> None:

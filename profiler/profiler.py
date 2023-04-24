@@ -1,9 +1,15 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from scheduler import Clock
+
 import math
 
-
 class Profiler:
-    def __init__(self) -> None:
-        self._total_energy: float = 0
+    def __init__(self, clock: Clock) -> None:
+        self._clock = clock
+
+        self._total_energy: int = 0
         self._cpu_power_timestamp: dict[str, tuple[int, int]] = {}
 
         # one index for each task type: common, energy, balance, idle, slack
@@ -11,9 +17,6 @@ class Profiler:
 
         self._created_task: int = 0
         self._ended_task: int = 0
-
-    def reset(self):
-        self.__init__()
 
     def executed_for(self, task_name: str, cycles: int) -> None:
         i = 0
@@ -34,14 +37,14 @@ class Profiler:
     def end_task(self) -> None:
         self._ended_task += 1
 
-    def update_power_consumption(self, power: int, timestamp_ms: int, cpu_name: str) -> None:
+    def update_power_consumption(self, power: int, cpu_name: str) -> None:
         if cpu_name in self._cpu_power_timestamp:
             previous_power = self._cpu_power_timestamp[cpu_name][0]
             previous_timestamp = self._cpu_power_timestamp[cpu_name][1]
             self._total_energy += previous_power * \
-                (timestamp_ms - previous_timestamp)  # TODO * 10**-3 ?
+                (self._clock.time - previous_timestamp)
 
-        self._cpu_power_timestamp[cpu_name] = (power, timestamp_ms)
+        self._cpu_power_timestamp[cpu_name] = (power, self._clock.time)
 
     @property
     def created_task(self) -> int:

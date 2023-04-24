@@ -7,19 +7,18 @@ import multiprocessing
 import time
 
 from scheduler import EAS, LoadGenerator, EASOverutilDisabled, EASOverutilTwolimits, EASOverutilManycores, EASOverutilTwolimitsManycores, EASCorechoiceNextfit
-from energy_model import Schedutil, EnergyModel
+from energy_model import EnergyModel
 from cpu import CPU, CPUGenerator
-from profiler import Profiler
 
 
-REPETITION = 1
+REPETITION = 10
 
 versions: list[type] = [
     EAS,
-    # EASOverutilDisabled,
-    # EASOverutilTwolimits,
-    # EASOverutilManycores,
-    # EASOverutilTwolimitsManycores,
+    EASOverutilDisabled,
+    EASOverutilTwolimits,
+    EASOverutilManycores,
+    EASOverutilTwolimitsManycores,
     EASCorechoiceNextfit
 ]
 
@@ -41,9 +40,9 @@ def run_experiment_on(cpus, cpus_description):
     for _ in range(REPETITION):
         eas_hist = (0, 0, 0, 0, 0, 0)
         for version in versions:
-            profiler = Profiler()
-            scheduler = version(load_generators[version], cpus, em, profiler)
+            scheduler = version(load_generators[version], cpus, em)
             scheduler.run(60000)
+            profiler = scheduler.profiler
 
             power = profiler.total_energy
             task_cycles = profiler.cycles_hist[0]
@@ -91,7 +90,7 @@ def run_experiment_on(cpus, cpus_description):
                 np.round(mean_var["energy"][0], 2), np.round(mean_var["energy"][1], 2)))
             f.write("{},{},".format(
                 np.round(mean_var["balance"][0], 2), np.round(mean_var["balance"][1], 2)))
-            f.write("{},{},".format(
+            f.write("{},{}\n".format(
                 np.round(mean_var["idle"][0], 2), np.round(mean_var["idle"][1], 2)))
 
     print(f"End experience on: {cpus_description}")
@@ -102,13 +101,13 @@ if __name__ == "__main__":
     start_time = time.time()
 
     cpus_list: list[tuple[list[CPU], str]] = [
-        #(CPUGenerator.gen(little=2, middle=2), "2 little 2 middle"),
-        #(CPUGenerator.gen(little=4, middle=4), "4 little 4 middle"),
-        #(CPUGenerator.gen(little=8, middle=8), "8 little 8 middle"),
+        (CPUGenerator.gen(little=2, middle=2), "2 little 2 middle"),
+        (CPUGenerator.gen(little=4, middle=4), "4 little 4 middle"),
+        (CPUGenerator.gen(little=8, middle=8), "8 little 8 middle"),
         (CPUGenerator.gen(little=16, middle=16), "16 little 16 middle"),
-        #(CPUGenerator.gen(little=32, middle=32), "32 little 32 middle"),
-        #(CPUGenerator.gen(little=16, middle=16, big=16), "16 little 16 middle 16 big"),
-        #(CPUGenerator.gen(little=32, middle=32, big=32), "32 little 32 middle 32 big")
+        (CPUGenerator.gen(little=32, middle=32), "32 little 32 middle"),
+        (CPUGenerator.gen(little=16, middle=16, big=16), "16 little 16 middle 16 big"),
+        (CPUGenerator.gen(little=32, middle=32, big=32), "32 little 32 middle 32 big")
     ]
 
     processes = []
