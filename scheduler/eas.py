@@ -7,21 +7,20 @@ if TYPE_CHECKING:
 
 import math
 import heapq
-import random
 
 from scheduler import Task, Clock
 from energy_model import Schedutil
 from profiler import Profiler
 
 class EAS:
-    def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EnergyModel, sched_tick_period: int = 1) -> None:
+    def __init__(self, load_gen: LoadGenerator, cpus: list[CPU], em: EnergyModel, sched_tick_period_ms: int = 1) -> None:
         self._load_gen: LoadGenerator = load_gen
         self._em: EnergyModel = em
 
         self._clock = Clock() 
         self.profiler = Profiler(self._clock)
 
-        self._sched_tick_period: int = sched_tick_period  # ms
+        self._sched_tick_period: int = sched_tick_period_ms
 
         self._cpus: list[CPU] = cpus
         self._perf_domains_name: list[PerfDom] = []
@@ -52,12 +51,12 @@ class EAS:
                 queue: RunQueue = self._run_queues[cpu]
 
                 # we assume new task could be comes at each scheduler tick
-                # on a random processor
+                # on each CPU
                 # and those task are assumed to never sleep or being blocked
                 new_task: Task | None = self._load_gen.gen()
                 if new_task is not None:
                     self.profiler.new_task()
-                    best_cpu: CPU = self._wake_up_balancer(random.choice(self._cpus), new_task)
+                    best_cpu: CPU = self._wake_up_balancer(cpu, new_task)
                     self._run_queues[best_cpu].insert(new_task)
 
                 # update P-States
