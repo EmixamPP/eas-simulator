@@ -35,7 +35,7 @@ class CPU:
 
     @pstate.setter
     def pstate(self, pstate: PState) -> None:
-        assert(pstate in self.pstates)
+        #assert(pstate in self.pstates) was used during dev phase
         self.profiler.update_power_consumption(pstate[1], self.name)
         self._pstate = pstate
 

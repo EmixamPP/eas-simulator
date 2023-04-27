@@ -51,5 +51,5 @@ class EASCorechoiceNextfit(EAS):
         # simulate the energy efficient wake-up balancer
         self._run_queues[by_cpu].insert_kernel_task(Task(100 * complexity, "energy"))
 
-        assert(best_cpu is not None)
+        # assert(best_cpu is not None) was used during dev phase
         return best_cpu

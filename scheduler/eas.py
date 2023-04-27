@@ -90,7 +90,7 @@ class EAS:
         complexity += len(self._cpus)
 
         if idle_cpu is not None:
-            assert(overloaded_cpu[0] is not None)
+            # assert(overloaded_cpu[0] is not None) was used during dev phase
             overloaded_runqueue: RunQueue = self._run_queues[overloaded_cpu[0]]
             idle_runqueue: RunQueue = self._run_queues[idle_cpu]
             task: Task | None = overloaded_runqueue.pop_highest_vr()
@@ -157,7 +157,7 @@ class EAS:
         # simulate the energy efficient wake-up balancer
         self._run_queues[by_cpu].insert_kernel_task(Task(100 * complexity, "energy"))
 
-        assert(best_cpu is not None)
+        # assert(best_cpu is not None) was used during dev phase
         return best_cpu
 
     def _compute_load(self, cpu: CPU) -> float:
