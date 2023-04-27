@@ -4,7 +4,6 @@ if TYPE_CHECKING:
     from scheduler import LoadGenerator
     from energy_model import EnergyModel
     from cpu import CPU
-    from profiler import Profiler
 
 from scheduler import EAS
 

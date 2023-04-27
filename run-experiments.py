@@ -12,6 +12,7 @@ from cpu import CPU, CPUGenerator
 
 
 REPETITION = 10
+RANDOM_SEED = 1
 
 versions: list[type] = [
     EAS,
@@ -27,12 +28,11 @@ def run_experiment_on(cpus, cpus_description):
     print(f"Stating experiment on: {cpus_description}")
     em: EnergyModel = EnergyModel(cpus)
 
-    random_seed: int = 1
     pick_distrib_ints: int = math.floor(0.1 * 10**9)
     max_distrib_insts: int = math.floor(4 * 10**9)
     create_task_prob: float = 0.999
     load_generators: dict[type, LoadGenerator] = {version: LoadGenerator(
-        pick_distrib_ints, max_distrib_insts, create_task_prob, random_seed) for version in versions}
+        pick_distrib_ints, max_distrib_insts, create_task_prob, RANDOM_SEED) for version in versions}
 
     # perform experiences and store observations
     diff_hist: dict[type, tuple[list[float], list[float], list[float], list[float], list[float], list[float]]] = {
