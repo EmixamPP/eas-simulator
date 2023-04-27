@@ -1,4 +1,3 @@
-#!/bin/python
 from typing import Any
 
 import math
@@ -49,10 +48,7 @@ def run_experiment_on(cpus, cpus_description):
             energy_cycles = profiler.cycles_hist[1]
             balance_cycles = profiler.cycles_hist[2]
             idle_cycles = profiler.cycles_hist[3]
-            print((power, task_cycles, energy_cycles,
-                            balance_cycles, idle_cycles))
-            print(profiler.created_task, profiler.ended_task)
-
+            
             if version == EAS:
                 eas_hist = (power, task_cycles, energy_cycles,
                             balance_cycles, idle_cycles)
