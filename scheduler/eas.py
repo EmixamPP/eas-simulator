@@ -91,7 +91,7 @@ class EAS:
 
         if idle_cpu is not None:
             # assert(overloaded_cpu[0] is not None) was used during dev phase
-            overloaded_runqueue: RunQueue = self._run_queues[overloaded_cpu[0]]
+            overloaded_runqueue: RunQueue = self._run_queues[overloaded_cpu[0]] # type: ignore
             idle_runqueue: RunQueue = self._run_queues[idle_cpu]
             task: Task | None = overloaded_runqueue.pop_highest_vr()
             if task is not None:
@@ -143,7 +143,7 @@ class EAS:
             complexity += len(self._cpus_per_domain[domain])
 
         best_cpu: CPU | None = None
-        best_cpu_power: int | float = math.inf
+        best_cpu_power: float = math.inf
         landscape: dict[CPU, int] = {cpu: self._run_queues[cpu].cap for cpu in candidates}
         for candidate in candidates:
             landscape[candidate] += task.remaining_cycles
@@ -158,7 +158,7 @@ class EAS:
         self._run_queues[by_cpu].insert_kernel_task(Task(100 * complexity, "energy"))
 
         # assert(best_cpu is not None) was used during dev phase
-        return best_cpu
+        return best_cpu # type: ignore
 
     def _compute_load(self, cpu: CPU) -> float:
         return self._run_queues[cpu].cap / cpu.max_capacity * 100

@@ -10,7 +10,7 @@ from energy_model import EnergyModel
 from cpu import CPU, CPUGenerator
 
 
-REPETITION = 10
+REPETITION = 100
 RANDOM_SEED = 1
 
 versions: list[type] = [
@@ -48,7 +48,7 @@ def run_experiment_on(cpus, cpus_description):
             energy_cycles = profiler.cycles_hist[1]
             balance_cycles = profiler.cycles_hist[2]
             idle_cycles = profiler.cycles_hist[3]
-            
+
             if version == EAS:
                 eas_hist = (power, task_cycles, energy_cycles,
                             balance_cycles, idle_cycles)

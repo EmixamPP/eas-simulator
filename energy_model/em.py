@@ -12,18 +12,18 @@ class EnergyModel:
         for cpu in cpus:
             self._power_table[cpu.type] = cpu.pstates
 
-    def compute_power(self, landscape: dict[CPU, int]) -> tuple[int, int]:
+    def compute_power(self, landscape: dict[CPU, int]) -> tuple[float, int]:
         complexity: int = 0
-        total_power: int = 0
+        total_power: float = 0
 
         for cpu in self._cpus:
             if cpu in landscape:
                 capacity: int = landscape[cpu]
-                power: int = 0
+                power: float = 0
 
                 # assume sorted in increasing order
                 for pstate in self._power_table[cpu.type]:
-                    power = pstate[1]
+                    power = (capacity / pstate[0]) * pstate[1]
                     if pstate[0] > capacity:
                         break
 

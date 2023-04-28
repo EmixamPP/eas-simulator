@@ -37,7 +37,7 @@ class EASCorechoiceNextfit(EAS):
             self._best_cpu_index[domain] = i
 
         best_cpu: CPU | None = None
-        best_cpu_power: int | float = math.inf
+        best_cpu_power: float = math.inf
         landscape: dict[CPU, int] = {cpu: self._run_queues[cpu].cap for cpu in candidates}
         for candidate in candidates:
             landscape[candidate] += task.remaining_cycles
@@ -52,4 +52,4 @@ class EASCorechoiceNextfit(EAS):
         self._run_queues[by_cpu].insert_kernel_task(Task(100 * complexity, "energy"))
 
         # assert(best_cpu is not None) was used during dev phase
-        return best_cpu
+        return best_cpu # type: ignore
