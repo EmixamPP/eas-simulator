@@ -80,15 +80,15 @@ def run_experiment_on(cpus, cpus_description):
             mean_var = diff_mean_var[version]
             f.write("{},".format(version.__name__))
             f.write("{},{},".format(
-                np.round(mean_var["total_energy"][0], 2), np.round(mean_var["total_energy"][1], 2)))
+                np.round(mean_var["total_energy"][0], 1), np.round(mean_var["total_energy"][1], 1)))
             f.write("{},{},".format(
-                np.round(mean_var["task"][0], 2), np.round(mean_var["task"][1], 2)))
+                np.round(mean_var["task"][0], 1), np.round(mean_var["task"][1], 1)))
             f.write("{},{},".format(
-                np.round(mean_var["energy"][0], 2), np.round(mean_var["energy"][1], 2)))
+                np.round(mean_var["energy"][0], 1), np.round(mean_var["energy"][1], 1)))
             f.write("{},{},".format(
-                np.round(mean_var["balance"][0], 2), np.round(mean_var["balance"][1], 2)))
+                np.round(mean_var["balance"][0], 1), np.round(mean_var["balance"][1], 1)))
             f.write("{},{}\n".format(
-                np.round(mean_var["idle"][0], 2), np.round(mean_var["idle"][1], 2)))
+                np.round(mean_var["idle"][0], 1), np.round(mean_var["idle"][1], 1)))
 
     print(f"End experience on: {cpus_description}")
 

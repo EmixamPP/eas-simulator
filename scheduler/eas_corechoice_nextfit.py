@@ -37,15 +37,15 @@ class EASCorechoiceNextfit(EAS):
             self._best_cpu_index[domain] = i
 
         best_cpu: CPU | None = None
-        best_cpu_power: float = math.inf
+        best_cpu_energy: float = math.inf
         landscape: dict[CPU, int] = {cpu: self._run_queues[cpu].cap for cpu in candidates}
         for candidate in candidates:
             landscape[candidate] += task.remaining_cycles
-            power, em_complexity = self._em.compute_power(landscape)
+            energy, em_complexity = self._em.compute_energy(landscape)
             landscape[candidate] -= task.remaining_cycles
-            if power < best_cpu_power:
+            if energy < best_cpu_energy:
                 best_cpu = candidate
-                best_cpu_power = power
+                best_cpu_energy = energy
             complexity += em_complexity
 
         # simulate the energy efficient wake-up balancer
