@@ -7,3 +7,4 @@ from scheduler.eas_overutil_manycores import EASOverutilManycores
 from scheduler.eas_overutil_twolimits import EASOverutilTwolimits
 from scheduler.eas_overutil_manycore_twolimits import EASOverutilTwolimitsManycores
 from scheduler.eas_corechoice_nextfit import EASCorechoiceNextfit
+from scheduler.eas_corechoice_nextfit_overutil_twolimits import EASCorechoiceNextfitOverutilTwolimits

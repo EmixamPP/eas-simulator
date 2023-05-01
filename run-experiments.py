@@ -5,7 +5,7 @@ import numpy as np
 import multiprocessing
 import time
 
-from scheduler import EAS, LoadGenerator, EASOverutilDisabled, EASOverutilTwolimits, EASOverutilManycores, EASOverutilTwolimitsManycores, EASCorechoiceNextfit
+from scheduler import EAS, LoadGenerator, EASOverutilDisabled, EASOverutilTwolimits, EASOverutilManycores, EASOverutilTwolimitsManycores, EASCorechoiceNextfit, EASCorechoiceNextfitOverutilTwolimits
 from energy_model import EnergyModel
 from cpu import CPU, CPUGenerator
 
@@ -19,7 +19,8 @@ versions: list[type] = [
     EASOverutilTwolimits,
     EASOverutilManycores,
     EASOverutilTwolimitsManycores,
-    EASCorechoiceNextfit
+    EASCorechoiceNextfit, 
+    EASCorechoiceNextfitOverutilTwolimits
 ]
 
 
