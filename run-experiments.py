@@ -56,7 +56,12 @@ def run_experiment_on(cpus: list[CPU], cpus_description: str):
 
     versions: list[type] = [
         EAS,
-        EASOverutilManycores
+        EASOverutilDisabled,
+        EASOverutilTwolimits,
+        EASOverutilManycores,
+        EASOverutilTwolimitsManycores,
+        EASCorechoiceNextfit,
+        EASCorechoiceNextfitOverutilTwolimits
     ]
 
     em: EnergyModel = EnergyModel(cpus)
