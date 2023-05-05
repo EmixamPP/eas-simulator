@@ -7,7 +7,7 @@ class EASOverutilManycores(EAS):
         super().__init__(load_gen, cpus, em, sched_tick_period_ms)
 
         if count_limit == -1:
-            self._count_limit: float = len(self._cpus) / 2
+            self._count_limit: int = int(len(self._cpus) / 2)
         else: 
             assert(0 <= count_limit <= len(self._cpus))
             self._count_limit = count_limit

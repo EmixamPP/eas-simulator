@@ -17,7 +17,7 @@ MAX_DISTRIB_INSTS: int = math.floor(4 * 10**9)
 CREATE_TASK_PROB: float = 0.999
 
 
-def _write_results(diff_hist: dict[str, tuple[list[float], list[float], list[float], list[float], list[float], list[float]]], cpus_description: str):
+def _write_results(diff_hist: dict[str, tuple[list[float], list[float], list[float], list[float], list[float], list[float]]], file_name: str):
     # compute means and variances of difference history
     diff_mean_var: dict[str, dict[str, tuple[Any, Any]]] = {}
 
@@ -34,7 +34,7 @@ def _write_results(diff_hist: dict[str, tuple[list[float], list[float], list[flo
         mean_var["idle"] = (np.mean(hist[4]), np.var(hist[4]))
 
     # output results
-    with open(f"results_{cpus_description}.csv".replace(" ", "_"), "w") as f:
+    with open(file_name, "w") as f:
         f.write("Version,Energy mean,Energy var,Task cycles mean,Task cycles var,Energy cycles mean,Energy cycles var,Balance cycles mean,Balance cycles var,Idle cycles mean,Idle cycles var\n")
         for version_name in diff_hist.keys():
             mean_var = diff_mean_var[version_name]
@@ -56,12 +56,7 @@ def run_experiment_on(cpus: list[CPU], cpus_description: str):
 
     versions: list[type] = [
         EAS,
-        EASOverutilDisabled,
-        EASOverutilTwolimits,
-        EASOverutilManycores,
-        EASOverutilTwolimitsManycores,
-        EASCorechoiceNextfit,
-        EASCorechoiceNextfitOverutilTwolimits
+        EASOverutilManycores
     ]
 
     em: EnergyModel = EnergyModel(cpus)
@@ -95,12 +90,13 @@ def run_experiment_on(cpus: list[CPU], cpus_description: str):
                 hist[3].append((balance_cycles / eas_hist[3] - 1) * 100)
                 hist[4].append((idle_cycles / eas_hist[4] - 1) * 100)
 
-    _write_results(diff_hist, cpus_description)
+    _write_results(
+        diff_hist, f"results_{cpus_description}.csv".replace(" ", "_"))
 
     print(f"Ending experiment on: {cpus_description}")
 
 
-def run_extra_expriment_calibration_on(cpus: list[CPU], cpus_description: str):
+def run_extra_experiment_calibration_on(cpus: list[CPU], cpus_description: str):
     print(f"Stating extra experiment for calibration on: {cpus_description}")
 
     em: EnergyModel = EnergyModel(cpus)
@@ -110,7 +106,7 @@ def run_extra_expriment_calibration_on(cpus: list[CPU], cpus_description: str):
     diff_hist: dict[str, tuple[list[float], list[float],
                                list[float], list[float], list[float], list[float]]] = {}
 
-    for count_limit in range(1, len(cpus)+1):
+    for count_limit in range(1, int(len(cpus) / 2) + 1):
         load_generators[f"EASOverutil{count_limit}cores"] = LoadGenerator(
             PICK_DISTRIB_INTS, MAX_DISTRIB_INSTS, CREATE_TASK_PROB, RANDOM_SEED)
         diff_hist[f"EASOverutil{count_limit}cores"] = ([], [], [], [], [], [])
@@ -129,9 +125,9 @@ def run_extra_expriment_calibration_on(cpus: list[CPU], cpus_description: str):
         eas_hist = (power, task_cycles, energy_cycles,
                     balance_cycles, idle_cycles)
 
-        for count_limit in range(1, len(cpus)+1):
+        for count_limit in range(1, int(len(cpus) / 2) + 1):
             scheduler = EASOverutilManycores(
-                load_generators[f"EASOverutil{count_limit}cores"], cpus, em, count_limit)
+                load_generators[f"EASOverutil{count_limit}cores"], cpus, em, count_limit=count_limit)
             scheduler.run(60000)
             profiler = scheduler.profiler
 
@@ -147,8 +143,9 @@ def run_extra_expriment_calibration_on(cpus: list[CPU], cpus_description: str):
             hist[2].append((energy_cycles / eas_hist[2] - 1) * 100)
             hist[3].append((balance_cycles / eas_hist[3] - 1) * 100)
             hist[4].append((idle_cycles / eas_hist[4] - 1) * 100)
-    
-    _write_results(diff_hist, cpus_description)
+
+    _write_results(
+        diff_hist, f"calibration_results_{cpus_description}.csv".replace(" ", "_"))
 
     print(f"Ending extra experiment for calibration on: {cpus_description}")
 
@@ -156,7 +153,7 @@ def run_extra_expriment_calibration_on(cpus: list[CPU], cpus_description: str):
 if __name__ == "__main__":
     start_time = time.time()
 
-    """experiment_args: list[tuple[list[CPU], str]] = [
+    experiment_args: list[tuple[list[CPU], str]] = [
         (CPUGenerator.gen(little=2, middle=2), "2 little 2 middle"),
         (CPUGenerator.gen(little=4, middle=4), "4 little 4 middle"),
         (CPUGenerator.gen(little=8, middle=8), "8 little 8 middle"),
@@ -164,22 +161,22 @@ if __name__ == "__main__":
         (CPUGenerator.gen(little=32, middle=32), "32 little 32 middle"),
         (CPUGenerator.gen(little=16, middle=16, big=16), "16 little 16 middle 16 big"),
         (CPUGenerator.gen(little=32, middle=32, big=32), "32 little 32 middle 32 big")
-    ]"""
+    ]
 
     processes = []
-    """for cpus, cpus_description in experiment_args:
+    for cpus, cpus_description in experiment_args:
         proc = multiprocessing.Process(
             target=run_experiment_on, args=(cpus, cpus_description))
         proc.start()
-        processes.append(proc)"""
-    
+        processes.append(proc)
+
     proc = multiprocessing.Process(
-            target=run_extra_expriment_calibration_on, args=(CPUGenerator.gen(little=8, middle=8), "8 little 8 middle"))
+        target=run_extra_experiment_calibration_on, args=(CPUGenerator.gen(little=8, middle=8), "8 little 8 middle"))
     proc.start()
     processes.append(proc)
-    
+
     for proc in processes:
         proc.join()
-    
+
     end_time = time.time()
     print("Min. elasped:", (end_time - start_time) / 60)
