@@ -114,6 +114,7 @@ class EAS:
 
     def _wake_up_balancer(self, by_cpu: CPU, task: Task) -> CPU:
         if self._is_over_utilized():
+            self.profiler.task_placed_by("balance")
             best_cpu: CPU = by_cpu
             for cpu in self._cpus:
                 if self._run_queues[cpu].cap == 0:
@@ -123,6 +124,7 @@ class EAS:
             self._run_queues[by_cpu].insert_kernel_task(Task(10 * len(self._cpus), "balance"))
 
         else:
+            self.profiler.task_placed_by("energy")
             best_cpu = self._find_energy_efficient_cpu(by_cpu, task)
 
         return best_cpu

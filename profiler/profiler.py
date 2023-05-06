@@ -5,6 +5,7 @@ if TYPE_CHECKING:
 
 import math
 
+
 class Profiler:
     def __init__(self, clock: Clock) -> None:
         self._clock = clock
@@ -17,6 +18,8 @@ class Profiler:
 
         self._created_task: int = 0
         self._ended_task: int = 0
+        self._task_placed_energy_aware: int = 0
+        self._task_placed_load_balancing: int = 0
 
     def executed_for(self, task_name: str, cycles: int) -> None:
         i = 0
@@ -55,14 +58,29 @@ class Profiler:
         return self._ended_task
 
     @property
-    def cycles_repartition(self) -> tuple[float, float, float, float, float]:
-        total_cycles = sum(self._cycles_hist)
-        return tuple([i/total_cycles*100 for i in self._cycles_hist])
-
-    @property
     def cycles_hist(self) -> tuple[int, int, int, int, int]:
         return tuple(self._cycles_hist)
 
     @property
     def total_energy(self) -> int:
         return math.ceil(self._total_energy)
+    
+    def task_placed_by(self, wakeup_algo: str) -> None:
+        if wakeup_algo == "energy":
+            self._task_placed_energy_aware += 1
+        elif wakeup_algo == "balance":
+            self._task_placed_load_balancing += 1
+
+    @property
+    def task_placed_energy_aware(self) -> int:
+        return self._task_placed_energy_aware
+
+    @property
+    def task_placed_by_load_balancing(self) -> int:
+        return self._task_placed_load_balancing
+    
+    @property
+    def cycles_repartition(self) -> tuple[float, float, float, float, float]:
+        total_cycles = sum(self._cycles_hist)
+        print(self._cycles_hist[1]/total_cycles*100)
+        return tuple([i/total_cycles*100 for i in self._cycles_hist])

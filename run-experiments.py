@@ -17,38 +17,36 @@ MAX_DISTRIB_INSTS: int = math.floor(4 * 10**9)
 CREATE_TASK_PROB: float = 0.999
 
 
-def _write_results(diff_hist: dict[str, tuple[list[float], list[float], list[float], list[float], list[float], list[float]]], file_name: str):
-    # compute means and variances of difference history
-    diff_mean_var: dict[str, dict[str, tuple[Any, Any]]] = {}
-
-    for version_name in diff_hist.keys():
-        diff_mean_var[version_name] = {}
-        mean_var = diff_mean_var[version_name]
-
-        hist = diff_hist[version_name]
-
-        mean_var["total_energy"] = (np.mean(hist[0]), np.var(hist[0]))
-        mean_var["task"] = (np.mean(hist[1]), np.var(hist[1]))
-        mean_var["energy"] = (np.mean(hist[2]), np.var(hist[2]))
-        mean_var["balance"] = (np.mean(hist[3]), np.var(hist[3]))
-        mean_var["idle"] = (np.mean(hist[4]), np.var(hist[4]))
-
-    # output results
+def _write_differences(diff_hist: dict[str, tuple[list[float], list[float], list[float], list[float], list[float]]], file_name: str):
+    # output means of the difference history
     with open(file_name, "w") as f:
-        f.write("Version,Energy mean,Energy var,Task cycles mean,Task cycles var,Energy cycles mean,Energy cycles var,Balance cycles mean,Balance cycles var,Idle cycles mean,Idle cycles var\n")
+        f.write("Version,Energy diff % mean,Task cycles diff % mean,Energy cycles diff % mean,Balance cycles diff % mean,Idle cycles diff % mean\n")
         for version_name in diff_hist.keys():
-            mean_var = diff_mean_var[version_name]
-            f.write(f"{version_name},")
-            f.write("{},{},".format(
-                np.round(mean_var["total_energy"][0], 1), np.round(mean_var["total_energy"][1], 1)))
-            f.write("{},{},".format(
-                np.round(mean_var["task"][0], 1), np.round(mean_var["task"][1], 1)))
-            f.write("{},{},".format(
-                np.round(mean_var["energy"][0], 1), np.round(mean_var["energy"][1], 1)))
-            f.write("{},{},".format(
-                np.round(mean_var["balance"][0], 1), np.round(mean_var["balance"][1], 1)))
+            hist = diff_hist[version_name]
+            f.write("{},{},{},{},{}\n".format(
+                version_name,
+                np.round(np.mean(hist[0]), 1),
+                np.round(np.mean(hist[1]), 1),
+                np.round(np.mean(hist[2]), 1),
+                np.round(np.mean(hist[3]), 1),
+                np.round(np.mean(hist[4]), 1),
+            ))
+
+
+def _write_placement(placement_hist: dict[str, tuple[list[int], list[int]]], file_name: str):
+    # output means of the task placement history
+    with open(file_name, "w") as f:
+        f.write("Version,Proportion % of task placed by energy aware mean\n")
+        for version_name in placement_hist.keys():
+            hist = placement_hist[version_name]
+            energy_hist = np.array(hist[0])
+            balance_hist = np.array(hist[1])
+            total = energy_hist + balance_hist
+            energy_propotion = energy_hist / total * 100
             f.write("{},{}\n".format(
-                np.round(mean_var["idle"][0], 1), np.round(mean_var["idle"][1], 1)))
+                version_name,
+                np.round(energy_propotion.mean(), 1),
+            ))
 
 
 def run_experiment_on(cpus: list[CPU], cpus_description: str):
@@ -68,9 +66,15 @@ def run_experiment_on(cpus: list[CPU], cpus_description: str):
     load_generators: dict[type, LoadGenerator] = {version: LoadGenerator(
         PICK_DISTRIB_INTS, MAX_DISTRIB_INSTS, CREATE_TASK_PROB, RANDOM_SEED) for version in versions}
 
-    diff_hist: dict[str, tuple[list[float], list[float], list[float], list[float], list[float], list[float]]] = {
-        version.__name__: ([], [], [], [], [], []) for version in versions[1:]}
+    diff_hist: dict[str, tuple[list[float], list[float], list[float], list[float], list[float]]] = \
+        {version.__name__: ([], [], [], [], []) for version in versions[1:]}
 
+    placement_hist: dict[str, tuple[list[int], list[int]]] = \
+        {version.__name__: ([], []) for version in versions}
+
+    # simulate EAS and the variants,
+    # and save the differences w.r.t. to EAS,
+    # and also save the cycles repartition of EAS
     for _ in range(REPETITION):
         eas_hist = (0, 0, 0, 0, 0, 0)
         for version in versions:
@@ -84,6 +88,9 @@ def run_experiment_on(cpus: list[CPU], cpus_description: str):
             balance_cycles = profiler.cycles_hist[2]
             idle_cycles = profiler.cycles_hist[3]
 
+            energy_placement = profiler.task_placed_energy_aware
+            balance_placement = profiler.task_placed_by_load_balancing
+
             if version == EAS:
                 eas_hist = (power, task_cycles, energy_cycles,
                             balance_cycles, idle_cycles)
@@ -95,8 +102,14 @@ def run_experiment_on(cpus: list[CPU], cpus_description: str):
                 hist[3].append((balance_cycles / eas_hist[3] - 1) * 100)
                 hist[4].append((idle_cycles / eas_hist[4] - 1) * 100)
 
-    _write_results(
-        diff_hist, f"results_{cpus_description}.csv".replace(" ", "_"))
+            hist = placement_hist[version.__name__]
+            hist[0].append(energy_placement)
+            hist[1].append(balance_placement)
+
+    placement_file_name = f"placement_{cpus_description}.csv"
+    _write_placement(placement_hist, placement_file_name)
+    diff_file_name = f"diff_{cpus_description}.csv"
+    _write_differences(diff_hist, diff_file_name)
 
     print(f"Ending experiment on: {cpus_description}")
 
@@ -109,12 +122,12 @@ def run_extra_experiment_calibration_on(cpus: list[CPU], cpus_description: str):
         PICK_DISTRIB_INTS, MAX_DISTRIB_INSTS, CREATE_TASK_PROB, RANDOM_SEED)}
 
     diff_hist: dict[str, tuple[list[float], list[float],
-                               list[float], list[float], list[float], list[float]]] = {}
+                               list[float], list[float], list[float]]] = {}
 
     for count_limit in range(1, int(len(cpus) / 2) + 1):
         load_generators[f"EASOverutil{count_limit}cores"] = LoadGenerator(
             PICK_DISTRIB_INTS, MAX_DISTRIB_INSTS, CREATE_TASK_PROB, RANDOM_SEED)
-        diff_hist[f"EASOverutil{count_limit}cores"] = ([], [], [], [], [], [])
+        diff_hist[f"EASOverutil{count_limit}cores"] = ([], [], [], [], [])
 
     for _ in range(REPETITION):
         scheduler = EAS(load_generators["EAS"], cpus, em)
@@ -149,8 +162,8 @@ def run_extra_experiment_calibration_on(cpus: list[CPU], cpus_description: str):
             hist[3].append((balance_cycles / eas_hist[3] - 1) * 100)
             hist[4].append((idle_cycles / eas_hist[4] - 1) * 100)
 
-    _write_results(
-        diff_hist, f"calibration_results_{cpus_description}.csv".replace(" ", "_"))
+    diff_calibration_file_name = f"diff_calibration_{cpus_description}.csv"
+    _write_differences(diff_hist, diff_calibration_file_name)
 
     print(f"Ending extra experiment for calibration on: {cpus_description}")
 
@@ -159,13 +172,8 @@ if __name__ == "__main__":
     start_time = time.time()
 
     experiment_args: list[tuple[list[CPU], str]] = [
-        (CPUGenerator.gen(little=2, middle=2), "2 little 2 middle"),
-        (CPUGenerator.gen(little=4, middle=4), "4 little 4 middle"),
-        (CPUGenerator.gen(little=8, middle=8), "8 little 8 middle"),
-        (CPUGenerator.gen(little=16, middle=16), "16 little 16 middle"),
-        (CPUGenerator.gen(little=32, middle=32), "32 little 32 middle"),
-        (CPUGenerator.gen(little=16, middle=16, big=16), "16 little 16 middle 16 big"),
-        (CPUGenerator.gen(little=32, middle=32, big=32), "32 little 32 middle 32 big")
+        (CPUGenerator.gen(little=2, middle=2), "2_little_2_middle"),
+
     ]
 
     processes = []
