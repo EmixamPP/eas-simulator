@@ -173,7 +173,12 @@ if __name__ == "__main__":
 
     experiment_args: list[tuple[list[CPU], str]] = [
         (CPUGenerator.gen(little=2, middle=2), "2_little_2_middle"),
-
+        (CPUGenerator.gen(little=4, middle=4), "4 little 4 middle"),
+        (CPUGenerator.gen(little=8, middle=8), "8 little 8 middle"),
+        (CPUGenerator.gen(little=16, middle=16), "16 little 16 middle"),
+        (CPUGenerator.gen(little=32, middle=32), "32 little 32 middle"),
+        (CPUGenerator.gen(little=16, middle=16, big=16), "16 little 16 middle 16 big"),
+        (CPUGenerator.gen(little=32, middle=32, big=32), "32 little 32 middle 32 big")
     ]
 
     processes = []
