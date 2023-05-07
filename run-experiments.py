@@ -3,7 +3,7 @@ import numpy as np
 import multiprocessing
 import time
 
-from scheduler import EAS, LoadGenerator, EASOverutilDisabled, EASOverutilTwolimits, EASOverutilManycores, EASOverutilTwolimitsManycores, EASCorechoiceNextfit, EASCorechoiceNextfitOverutilTwolimits, EASCorechoiceNextfitOverutilDisabled
+from scheduler import EAS, LoadGenerator, EASOverutilDisabled, EASOverutilTwolimits, EASOverutilManycores, EASCorechoiceNextfit, EASCorechoiceNextfitOverutilDisabled
 from energy_model import EnergyModel
 from cpu import CPU, CPUGenerator
 
@@ -55,9 +55,7 @@ def run_experiment_on(cpus: list[CPU], cpus_description: str):
         EASOverutilDisabled,
         EASOverutilTwolimits,
         EASOverutilManycores,
-        EASOverutilTwolimitsManycores,
         EASCorechoiceNextfit,
-        EASCorechoiceNextfitOverutilTwolimits,
         EASCorechoiceNextfitOverutilDisabled
     ]
 
@@ -142,7 +140,7 @@ def run_extra_experiment_calibration_on(cpus: list[CPU], cpus_description: str):
         eas_hist = (power, task_cycles, energy_cycles,
                     balance_cycles, idle_cycles)
 
-        for count_limit in range(1, int(len(cpus) / 2) + 1):
+        for count_limit in range(2, int(len(cpus) / 2) + 1):
             scheduler = EASOverutilManycores(
                 load_generators[f"EASOverutil{count_limit}cores"], cpus, em, count_limit=count_limit)
             scheduler.run(60000)
