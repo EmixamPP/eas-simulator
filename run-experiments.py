@@ -1,11 +1,9 @@
-from typing import Any
-
 import math
 import numpy as np
 import multiprocessing
 import time
 
-from scheduler import EAS, LoadGenerator, EASOverutilDisabled, EASOverutilTwolimits, EASOverutilManycores, EASOverutilTwolimitsManycores, EASCorechoiceNextfit, EASCorechoiceNextfitOverutilTwolimits
+from scheduler import EAS, LoadGenerator, EASOverutilDisabled, EASOverutilTwolimits, EASOverutilManycores, EASOverutilTwolimitsManycores, EASCorechoiceNextfit, EASCorechoiceNextfitOverutilTwolimits, EASCorechoiceNextfitOverutilDisabled
 from energy_model import EnergyModel
 from cpu import CPU, CPUGenerator
 
@@ -59,7 +57,8 @@ def run_experiment_on(cpus: list[CPU], cpus_description: str):
         EASOverutilManycores,
         EASOverutilTwolimitsManycores,
         EASCorechoiceNextfit,
-        EASCorechoiceNextfitOverutilTwolimits
+        EASCorechoiceNextfitOverutilTwolimits,
+        EASCorechoiceNextfitOverutilDisabled
     ]
 
     em: EnergyModel = EnergyModel(cpus)
