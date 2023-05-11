@@ -21,7 +21,7 @@ def _write_differences(diff_hist: dict[str, tuple[list[float], list[float], list
         f.write("Version,Energy diff % mean,Task cycles diff % mean,Energy cycles diff % mean,Balance cycles diff % mean,Idle cycles diff % mean\n")
         for version_name in diff_hist.keys():
             hist = diff_hist[version_name]
-            f.write("{},{},{},{},{}\n".format(
+            f.write("{},{},{},{},{},{}\n".format(
                 version_name,
                 np.round(np.mean(hist[0]), 1),
                 np.round(np.mean(hist[1]), 1),
@@ -84,7 +84,6 @@ def run_experiment_on(cpus: list[CPU], cpus_description: str):
             energy_cycles = profiler.cycles_hist[1]
             balance_cycles = profiler.cycles_hist[2]
             idle_cycles = profiler.cycles_hist[3]
-
             energy_placement = profiler.task_placed_energy_aware
             balance_placement = profiler.task_placed_by_load_balancing
 
@@ -121,10 +120,14 @@ def run_extra_experiment_calibration_on(cpus: list[CPU], cpus_description: str):
     diff_hist: dict[str, tuple[list[float], list[float],
                                list[float], list[float], list[float]]] = {}
 
-    for count_limit in range(1, int(len(cpus) / 2) + 1):
-        load_generators[f"EASOverutil{count_limit}cores"] = LoadGenerator(
+    placement_hist: dict[str, tuple[list[int], list[int]]] = {}
+
+    for count_limit in range(2, int(len(cpus) / 2) + 2):
+        version_name = f"EASOverutil{count_limit}cores"
+        load_generators[version_name] = LoadGenerator(
             PICK_DISTRIB_INTS, MAX_DISTRIB_INSTS, CREATE_TASK_PROB, RANDOM_SEED)
-        diff_hist[f"EASOverutil{count_limit}cores"] = ([], [], [], [], [])
+        diff_hist[version_name] = ([], [], [], [], [])
+        placement_hist[version_name] = ([], [])
 
     for _ in range(REPETITION):
         scheduler = EAS(load_generators["EAS"], cpus, em)
@@ -140,9 +143,11 @@ def run_extra_experiment_calibration_on(cpus: list[CPU], cpus_description: str):
         eas_hist = (power, task_cycles, energy_cycles,
                     balance_cycles, idle_cycles)
 
-        for count_limit in range(2, int(len(cpus) / 2) + 1):
+        for count_limit in range(2, int(len(cpus) / 2) + 2):
+            version_name = f"EASOverutil{count_limit}cores"
+
             scheduler = EASOverutilManycores(
-                load_generators[f"EASOverutil{count_limit}cores"], cpus, em, count_limit=count_limit)
+                load_generators[version_name], cpus, em, count_limit=count_limit)
             scheduler.run(60000)
             profiler = scheduler.profiler
 
@@ -151,14 +156,22 @@ def run_extra_experiment_calibration_on(cpus: list[CPU], cpus_description: str):
             energy_cycles = profiler.cycles_hist[1]
             balance_cycles = profiler.cycles_hist[2]
             idle_cycles = profiler.cycles_hist[3]
+            energy_placement = profiler.task_placed_energy_aware
+            balance_placement = profiler.task_placed_by_load_balancing
 
-            hist = diff_hist[f"EASOverutil{count_limit}cores"]
+            hist = diff_hist[version_name]
             hist[0].append((power / eas_hist[0] - 1) * 100)
             hist[1].append((task_cycles / eas_hist[1] - 1) * 100)
             hist[2].append((energy_cycles / eas_hist[2] - 1) * 100)
             hist[3].append((balance_cycles / eas_hist[3] - 1) * 100)
             hist[4].append((idle_cycles / eas_hist[4] - 1) * 100)
 
+            hist = placement_hist[version_name]
+            hist[0].append(energy_placement)
+            hist[1].append(balance_placement)
+
+    placement_file_name = f"placement_calibration_{cpus_description}.csv"
+    _write_placement(placement_hist, placement_file_name)
     diff_calibration_file_name = f"diff_calibration_{cpus_description}.csv"
     _write_differences(diff_hist, diff_calibration_file_name)
 
@@ -178,6 +191,10 @@ if __name__ == "__main__":
         (CPUGenerator.gen(little=32, middle=32, big=32), "32_little_32_middle_32_big")
     ]
 
+    extra_experiment_args: list[tuple[list[CPU], str]] = [
+        (CPUGenerator.gen(little=8, middle=8), "8_little_8_middle")
+    ]
+
     processes = []
     for cpus, cpus_description in experiment_args:
         proc = multiprocessing.Process(
@@ -185,10 +202,11 @@ if __name__ == "__main__":
         proc.start()
         processes.append(proc)
 
-    proc = multiprocessing.Process(
-        target=run_extra_experiment_calibration_on, args=(CPUGenerator.gen(little=8, middle=8), "8_little_8_middle"))
-    proc.start()
-    processes.append(proc)
+    for cpus, cpus_description in extra_experiment_args:
+        proc = multiprocessing.Process(
+            target=run_extra_experiment_calibration_on, args=(cpus, cpus_description))
+        proc.start()
+        processes.append(proc)
 
     for proc in processes:
         proc.join()
