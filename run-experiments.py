@@ -198,13 +198,13 @@ if __name__ == "__main__":
     processes = []
     for cpus, cpus_description in experiment_args:
         proc = multiprocessing.Process(
-            target=run_experiment_on, args=(cpus, cpus_description))
+            target=run_experiment_on, args=[cpus, cpus_description])
         proc.start()
         processes.append(proc)
 
     for cpus, cpus_description in extra_experiment_args:
         proc = multiprocessing.Process(
-            target=run_extra_experiment_calibration_on, args=(cpus, cpus_description))
+            target=run_extra_experiment_calibration_on, args=[cpus, cpus_description])
         proc.start()
         processes.append(proc)
 
