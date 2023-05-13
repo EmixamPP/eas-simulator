@@ -1,10 +1,8 @@
 # eas-simulator
-Simplified simulator/profiler for the Linux Energy Aware Scheduler and modified versions from my master thesis.
+Code repository used to produce the results of my master thesis. 
+It contains a simplified moduler simulator with a profiler for the Linux Energy Aware Scheduler, along with multiple modified versions from my work.
+And two scripts that runs the experiments and generates the results that I conduct in my report. Require `python >= 3.10`.
 
-The code do not contains doc string, but it should be self-documented and some lines are commented. In addition, the code is fully statically typed. 
+Execute `python run-scheduling-exp.py` to repreduce the results about the scheduling experiments, they are saved as `.csv` files.
 
-Execute `python run-experiments.py` to repreduce the results about the scheduler experiments, they are saved as `.csv` files.
-
-And execute `bin_packing.py` to reproduce the results about the bin packing of worst-fit and nextfit under condition, they are also saved as `.csv` files.  
-
-Compatible with Python >= 3.10.
+Execute `python run-binpacking-exp.py` to reproduce the results about the bin packing experiments, they are also saved as `.csv` files.  
