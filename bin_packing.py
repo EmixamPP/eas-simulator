@@ -83,7 +83,7 @@ def run_experiment_with(nbr_bin: int):
 
             nextfitcond_std_diff_hist = []
             nextfit_std_diff_hist = []
-            nextfitcond_step_diff_hist = []
+            nextfitcond_step_hist = []
             for repetition in range(10000):
 
                 worstfit: Placer = Worstfit(nbr_bin)
@@ -106,8 +106,7 @@ def run_experiment_with(nbr_bin: int):
 
                 nextfitcond_std_diff_hist.append(worstfit_std - nextfitcond_std)
                 nextfit_std_diff_hist.append(worstfit_std - nextfit_std)
-                nextfitcond_step_diff_hist.append(
-                    worstfit.total_step - nextfitcond.total_step)
+                nextfitcond_step_hist.append(nextfitcond.total_step)
 
             median, q1, q3, whisker_min, whisker_max, outers = compute_boxplot(
                 np.array(nextfitcond_std_diff_hist))
@@ -115,7 +114,7 @@ def run_experiment_with(nbr_bin: int):
                 f"nextfitcond_std_items{nbr_item}, {median}, {q1}, {q3}, {whisker_min}, {whisker_max}, {tuple(outers)}\n")
 
             median, q1, q3, whisker_min, whisker_max, outers = compute_boxplot(
-                np.array(nextfitcond_step_diff_hist))
+                np.array(nextfitcond_step_hist))
             file.write(
                 f"nextfitcond_step_items{nbr_item}, {median}, {q1}, {q3}, {whisker_min}, {whisker_max}, {tuple(outers)}\n")
 
