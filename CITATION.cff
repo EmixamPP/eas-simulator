@@ -1,0 +1,9 @@
+cff-version: 1.0.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Dirksen
+    given-names: Maxime
+title: "Modulable high level simulator and profiler for EAS"
+version: 1.0.0
+date-released: 2023-05
+url: "https://github.com/EmixamPP/eas-simulator"
